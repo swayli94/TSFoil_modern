@@ -66,20 +66,21 @@ program tsfoil_main
   call SOLVE()
   
   ! Check for mesh refinement or final results
-  if (IREF > 0 .and. .not. ABORT1) then
+  if (IREF <= 0) then
+    write(*,'(A)') 'No mesh refinement requested'
+  else if (ABORT1) then
+    write(*,'(A)') 'Mesh refinement requested, but solution diverged'
+  else
     write(*,'(A)') 'Printing intermediate results...'
     call PRINT1()
-    
-    if (.not. ABORT1) then
-      write(*,'(A)') 'Refining mesh...'
-      call REFINE()
-      write(*,'(A)') 'Recomputing finite difference coefficients...'
-      call DIFCOE()
-      write(*,'(A)') 'Setting boundary conditions after refinement...'
-      call SETBC(0) 
-      write(*,'(A)') 'Continuing solution after refinement...'
-      call SOLVE()
-    end if
+    write(*,'(A)') 'Refining mesh...'
+    call REFINE()
+    write(*,'(A)') 'Recomputing finite difference coefficients...'
+    call DIFCOE()
+    write(*,'(A)') 'Setting boundary conditions after refinement...'
+    call SETBC(0) 
+    write(*,'(A)') 'Continuing solution after refinement...'
+    call SOLVE()
   end if
   
   ! Print final results

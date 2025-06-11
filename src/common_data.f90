@@ -257,10 +257,9 @@ contains
     J1 = JBOT + 1
     J2 = JTOP - 1
     AMESH = .false.
-    IREF = 0
+    IREF = 0  ! Refinement of mesh, 0 = no refinement, 1 = refinement
     ICUT = 2   ! Updated to match BLOCK DATA
     KSTEP = 1
-    ABORT1 = .true.   ! Updated to match BLOCK DATA  
     PHYS = .true.
     BCFOIL = 3   ! Updated to match BLOCK DATA
     BCTYPE = 1  ! Default to free air boundary condition
@@ -319,8 +318,8 @@ contains
     PSAVE = .false.
     FCR = .true.
     KUTTA = .true.
-    ABORT1 = .true.
-    AMESH = .false.
+    ABORT1 = .false.
+    AMESH = .false. ! Automatic mesh generation
     
     ! Boundary condition parameters (from BLOCK DATA)
     BCFOIL = 3

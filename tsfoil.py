@@ -89,8 +89,6 @@ class Plotter(object):
             plt.savefig(filename, dpi=300, bbox_inches='tight')
             print(f"      Saved: {filename}")
         
-        plt.show(block=False)
-        
     def plot_machx(self, buffer_row=-1, save_to_folder=None):
         row = self.buffer.iloc[buffer_row]
         ax = self.gen_cpx_mach_ax(mach=True)
@@ -105,9 +103,7 @@ class Plotter(object):
             filename = os.path.join(save_to_folder, f"mach_x_mach_{row['mach']:.3f}.png")
             plt.savefig(filename, dpi=300, bbox_inches='tight')
             print(f"      Saved: {filename}")
-        
-        plt.show(block=False)
-        
+
     def pseq_machx(self, df=None, save_to_folder=None):
         df = df if isinstance(df, pd.core.frame.DataFrame) else self.buffer
         ax = self.gen_cpx_mach_ax(mach=True)
@@ -124,8 +120,6 @@ class Plotter(object):
             filename = os.path.join(save_to_folder, "mach_sequence.png")
             plt.savefig(filename, dpi=300, bbox_inches='tight')
             print(f"      Saved: {filename}")
-        
-        plt.show(block=False)
 
     def gen_contour_fig(self, mach=False):
         fig, ax = plt.subplots(figsize=(8, 6))
@@ -170,7 +164,6 @@ class Plotter(object):
             plt.savefig(filename, dpi=300, bbox_inches='tight')
             plt.close()
             return filename
-        plt.show(block=False)
 
     def plot_isomach(self, buffer_row=-1, savepng=False, save_to_folder=None):
         if save_to_folder and not savepng:
@@ -216,8 +209,6 @@ class Plotter(object):
             plt.savefig(filename, dpi=300, bbox_inches='tight')
             print(f"      Saved: {filename}")
 
-        plt.show(block=False)
-
     def gplot(self, x, y, row=None, color='red', save_to_folder=None):
         fig, ax = plt.subplots(figsize=(8, 6))
         ax.set_title("{} vs {}".format(x.upper(), y.upper()))
@@ -234,8 +225,6 @@ class Plotter(object):
             filename = os.path.join(save_to_folder, f"{safe_x}_vs_{safe_y}.png")
             plt.savefig(filename, dpi=300, bbox_inches='tight')
             print(f"      Saved: {filename}")
-            
-        plt.show(block=False)
 
     def animate(self, mach=True):
         images = []

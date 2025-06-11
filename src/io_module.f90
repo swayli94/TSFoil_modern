@@ -65,7 +65,7 @@ contains
     integer :: J_VAR, IM1, JM1, IDX, JDX
     real :: TERM, HTM, HTP, YS, YE, TIME1, TIME2, ELPTM
     logical, save :: first_call = .true.
-    character(len=20) :: IN_FILENAME
+    character(len=100) :: IN_FILENAME
     integer :: ios
     
     ! Open output files and handle input file on first call only  
@@ -80,7 +80,7 @@ contains
         write(*, '(A)') 'Using input file: ' // trim(IN_FILENAME)
       end if
       
-      open(unit=UNIT_INPUT, file=IN_FILENAME, status='old')
+      open(unit=UNIT_INPUT, file=trim(IN_FILENAME), status='old')
       
       call open_output_files()
       
@@ -205,7 +205,6 @@ contains
     
     ! Set derived constants
     GAM1 = GAM + 1.0
-    IREF = 0
     IMAX = IMAXI
     JMAX = JMAXI
     IM1 = IMAX - 1
@@ -503,7 +502,6 @@ contains
   
   ! Print Cp and Mach along body and build plot arrays
   ! Prints pressure coefficient and Mach number on Y=0 line, and plots CP along side of print
-  ! This matches the original PRINT1 functionality exactly
   subroutine PRINT1()
     use common_data
     use math_module, only: PX, EMACH1, LIFT, PITCH
