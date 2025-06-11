@@ -1,0 +1,15 @@
+*.txt
+*.o
+*.mod
+*.cp
+*.ech
+*.fld
+*.log
+*.map
+*.out
+*.shk
+*.wal
+
+temp*
+plot*
+
