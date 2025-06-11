@@ -17,8 +17,8 @@ module io_module
                   FLPLOC, IDLA
   
   ! Declare public procedures
-  public :: READIN, SCALE, ECHINP, PRINT, PRINT1, PRTFLD, PRTMC, PRTSK, PRTWAL, SAVEP, GUESSP
-  public :: open_output_files, close_output_files, PRINT_INP_NAMELIST, CDCOLE, FIXPLT, CPPLOT, PLTSON
+  public :: READIN, SCALE, PRINT, PRINT1, PRTFLD, PRTMC, PRTSK, PRTWAL, SAVEP, GUESSP
+  public :: open_output_files, close_output_files, CDCOLE, FIXPLT, CPPLOT, PLTSON, INPERR
 
 contains
   
@@ -257,7 +257,9 @@ contains
     
     ! If PSTART = 2 read old values from restart file using LOADP subroutine
     if (PSTART == 2) then
-      call LOADP()
+      write(*, '(A)') 'PSTART = 2 not used in modern code'
+      stop
+      ! call LOADP()
     end if
     
   end subroutine READIN
@@ -388,32 +390,7 @@ contains
     return
 
   end subroutine SCALE  
-  
-  ! Echo input cards for logging - exactly like original ECHINP
-  ! Prints input cards used for run (called by - TSFOIL main program)
-  ! NOTE: This should be called ONCE before any case processing,
-  ! not from within READIN, to echo the entire input file
-  subroutine ECHINP()
-    use common_data, only: UNIT_INPUT, UNIT_OUTPUT
-    implicit none
-    character(len=80) :: CRD  ! Input card buffer (20A4 = 80 characters)
-    integer :: read_status
     
-    ! Write form feed to output file (1H1 format)
-    write(UNIT_OUTPUT,'(A1)') char(12)  ! Form feed character equivalent to 1H1
-    
-    ! Read and echo all input cards until end of file
-    do
-      read(UNIT_INPUT, '(A80)', iostat=read_status) CRD
-      if (read_status /= 0) exit  ! Exit on any read error or EOF
-      write(UNIT_OUTPUT, '(1X,A)') trim(CRD)
-    end do
-    
-    ! Rewind input file after reading all cards
-    rewind(UNIT_INPUT)
-
-  end subroutine ECHINP
-  
   ! Main print driver: prints configuration parameters and calls specialized subroutines
   ! Subroutine for main output print control. Prints relative parameters and calls
   ! specialized print/plot subroutines as required.
@@ -1081,201 +1058,7 @@ contains
       write(UNIT_OUTPUT, '(8F10.6)') (P(J,I), J=JMINO, JMAXO)
     end do    
   end subroutine SAVEP
-
-  ! Initialize YIN array if not read from namelist
-  subroutine check_yin_defaults()
-    use common_data, only: YIN, JMIN, JMAX, JUP, JLOW, H, BCTYPE
-    implicit none
-    integer :: J
-    real :: TERM
-    
-    if (YIN(JMIN) /= 0.0) return
-    
-    ! Fill YIN with default values for tunnel or free air case
-    if (BCTYPE == 1) then
-      ! Free air case - exponential distribution
-      do J = JMIN, JLOW
-        TERM = real(J - JMIN) / real(JLOW - JMIN)
-        YIN(J) = -H * (1.0 - EXP(-2.0 * TERM))
-      end do
-      do J = JUP, JMAX
-        TERM = real(J - JUP) / real(JMAX - JUP)
-        YIN(J) = H * (1.0 - EXP(-2.0 * TERM))
-      end do
-    else
-      ! Tunnel case - linear distribution
-      do J = JMIN, JLOW
-        YIN(J) = -H * real(J - JMIN) / real(JLOW - JMIN)
-      end do
-      do J = JUP, JMAX
-        YIN(J) = H * real(J - JUP) / real(JMAX - JUP)
-      end do
-    end if
-  end subroutine check_yin_defaults
-
-  ! OUTPUTS CP DATA IN FORM USABLE BY ANTANI'S INTEGRATION PROGRAM
-  subroutine DLAOUT(ILE_IN, ITE_IN, ALPHA_IN, DFLP, EM, VF, RE)
-    use common_data, only: P, X, Y, CPL, CPU, XCP, CPP, UNIT_OUTPUT, UNIT_DLAOUT_INPUT, UNIT_DLAOUT_OUTPUT
-    use spline_module, only: SPLN1, SPLN1X, initialize_spline, set_boundary_conditions
-    implicit none
-    
-    ! Arguments
-    integer, intent(in) :: ILE_IN, ITE_IN
-    real, intent(in) :: ALPHA_IN, DFLP, EM, VF, RE
-    
-    ! Local variables
-    integer :: NUP, NDOWN, NCON, NTEST, NRUN, NPT
-    integer :: NS, NE, NX, I
-    real :: R, ALFA
-    real :: DY1, DY2, XP, YP, DYP
-    
-    write(UNIT_OUTPUT,'(A)') 'DLAOUT: Starting CP data output for integration program'
-    
-    ! Initialize spline module
-    call initialize_spline(200)
-    
-    ! Read input parameters from unit 5
-    read(UNIT_DLAOUT_INPUT, '(6I5)') NUP, NDOWN, NCON, NTEST, NRUN, NPT
-    
-    ! Convert units and parameters
-    R = RE / 1.0E+06
-    ALFA = ALPHA_IN * VF
-    
-    ! Write header information to unit 10
-    write(UNIT_DLAOUT_OUTPUT, '(F6.3,F6.2,24X,F6.3,I6,F6.1,16X,2I3,I2)') EM, ALFA, R, NCON, DFLP, NTEST, NRUN, NPT
-    
-    ! Read upper surface X-coordinates
-    read(UNIT_DLAOUT_INPUT, '(11F6.3)') (XCP(I), I=1, NUP)
-    
-    ! Read lower surface X-coordinates
-    NS = NUP + 1
-    NE = NUP + NDOWN
-    read(UNIT_DLAOUT_INPUT, '(11F6.3)') (XCP(I), I=NS, NE)
-      ! Set spline boundary conditions (K1=1, K2=1 for first derivative specified)
-    
-    ! Interpolate upper surface CP values
-    DY1 = (CPU(ILE_IN+1) - CPU(ILE_IN)) / (X(ILE_IN+1) - X(ILE_IN))
-    DY2 = (CPU(ITE_IN) - CPU(ITE_IN-1)) / (X(ITE_IN) - X(ITE_IN-1))
-    NX = ITE_IN - ILE_IN + 1
-    
-    ! Set boundary conditions in spline module
-    call set_boundary_conditions(1, 1, DY1, DY2)
-    
-    call SPLN1(X(ILE_IN:), CPU(ILE_IN:), NX)
-    
-    do I = 1, NUP
-      XP = XCP(I)
-      call SPLN1X(X(ILE_IN:), CPU(ILE_IN:), NX, XP, YP, DYP)
-      CPP(I) = YP
-    end do
-    
-    ! Interpolate lower surface CP values
-    DY1 = (CPL(ILE_IN+1) - CPL(ILE_IN)) / (X(ILE_IN+1) - X(ILE_IN))
-    DY2 = (CPL(ITE_IN) - CPL(ITE_IN-1)) / (X(ITE_IN) - X(ITE_IN-1))
-    
-    ! Set boundary conditions in spline module
-    call set_boundary_conditions(1, 1, DY1, DY2)
-    
-    call SPLN1(X(ILE_IN:), CPL(ILE_IN:), NX)
-    
-    do I = NS, NE
-      XP = XCP(I)
-      call SPLN1X(X(ILE_IN:), CPL(ILE_IN:), NX, XP, YP, DYP)
-      CPP(I) = YP
-    end do
-    
-    ! Write interpolated CP values to output
-    write(UNIT_DLAOUT_OUTPUT, '(11F6.3)') (CPP(I), I=1, NUP)
-    write(UNIT_DLAOUT_OUTPUT, '(11F6.3)') (CPP(I), I=NS, NE)
-    write(UNIT_OUTPUT,'(A,I0,A,I0,A)') 'DLAOUT: Completed CP interpolation for ', NUP, ' upper and ', NDOWN, ' lower surface points'
-    
-  end subroutine DLAOUT
   
-  ! Read restart file (PSTART=2 case) - matches original exactly
-  subroutine LOADP()
-    use common_data
-    implicit none
-    integer :: I, J, ios_restart
-    
-    write(UNIT_OUTPUT, '(A)') 'Reading restart data from fort.7'
-    
-    open(unit=UNIT_RESTART, file='fort.7', status='old', action='read', iostat=ios_restart)
-    if (ios_restart /= 0) then
-      write(UNIT_OUTPUT, '(A)') 'Error: Cannot open restart file fort.7'
-      call INPERR(2)
-      return
-    end if
-    
-    rewind(UNIT_RESTART)
-      ! Read title using original format 900: FORMAT(20A4)
-    read(UNIT_RESTART, '(20A4)', iostat=ios_restart) TITLEO
-    if (ios_restart /= 0) then
-      write(UNIT_OUTPUT, '(A)') 'Error reading title from restart file'
-      call INPERR(2)
-      return
-    end if
-    
-    ! Read mesh dimensions using original format 902: FORMAT(4I5)
-    read(UNIT_RESTART, '(4I5)', iostat=ios_restart) IMINO, IMAXO, JMINO, JMAXO
-    if (ios_restart /= 0) then
-      write(UNIT_OUTPUT, '(A)') 'Error reading mesh dimensions from restart file'
-      call INPERR(2)
-      return
-    end if
-      ! Read solution parameters using original format 903: FORMAT(8F10.6)
-    read(UNIT_RESTART, '(8F10.6)', iostat=ios_restart) CLOLD, EMACHO, ALPHAO, DELTAO, VOLO, DUBO
-    if (ios_restart /= 0) then
-      write(UNIT_OUTPUT, '(A)') 'Error reading solution parameters from restart file'
-      call INPERR(2)
-      return
-    end if
-      ! Read grid coordinates using original format 903: FORMAT(8F10.6)
-    read(UNIT_RESTART, '(8F10.6)', iostat=ios_restart) (XOLD(I), I=IMINO, IMAXO)
-    if (ios_restart /= 0) then
-      write(UNIT_OUTPUT, '(A)') 'Error reading X coordinates from restart file'
-      call INPERR(2)
-      return
-    end if
-    
-    read(UNIT_RESTART, '(8F10.6)', iostat=ios_restart) (YOLD(J), J=JMINO, JMAXO)
-    if (ios_restart /= 0) then
-      write(UNIT_OUTPUT, '(A)') 'Error reading Y coordinates from restart file'
-      call INPERR(2)
-      return
-    end if
-    
-    ! Read solution array P using original format 903: FORMAT(8F10.6)
-    do I = IMINO, IMAXO
-      read(UNIT_RESTART, '(8F10.6)', iostat=ios_restart) (P(J,I), J=JMINO, JMAXO)
-      if (ios_restart /= 0) then
-        write(UNIT_OUTPUT, '(A,I0)') 'Error reading P array at I=', I
-        call INPERR(2)
-        close(UNIT_RESTART)
-        return
-      end if
-    end do
-
-    close(UNIT_RESTART)
-    write(UNIT_OUTPUT, '(A)') 'Restart data successfully loaded'
-      ! Write restart information to output file (like original)
-    write(UNIT_OUTPUT, '(A, /, 1X, 20A4, /, A, /, A, I4, /, A, I4, /, A, I4, /, A, I4, /, &
-          &A, F12.8, /, A, F12.8, /, A, F12.8, /, A, F12.8, /, A, F12.8, /, A, F12.8)') &
-        '1P INITIALIZED FROM PREVIOUS RUN TITLED', &
-        TITLEO, &
-        ' WHICH HAD THE FOLLOWING VALUES', &
-        ' IMIN  =', IMINO, &
-        ' IMAX  =', IMAXO, &
-        ' JMIN  =', JMINO, &
-        ' JMAX  =', JMAXO, &
-        ' CL    =', CLOLD, &
-        ' EMACH =', EMACHO, &
-        ' ALPHA =', ALPHAO, &
-        ' DELTA =', DELTAO, &
-        ' VOL   =', VOLO, &
-        ' DUB   =', DUBO
-    
-  end subroutine LOADP
-
   ! Initialize potential array P based on PSTART value
   subroutine GUESSP()
     ! SUBROUTINE INITIALIZES P ARRAY AS FOLLOWS
@@ -1830,150 +1613,6 @@ contains
     
     stop
   end subroutine INPERR
-
-  ! Print INP namelist parameters to UNIT_OUTPUT for debugging
-  subroutine PRINT_INP_NAMELIST()
-    use common_data
-    implicit none
-    integer :: I, J
-    
-    write(UNIT_OUTPUT, '(A)') '1'  ! Form feed character
-    write(UNIT_OUTPUT, '(A)') '0************************************'
-    write(UNIT_OUTPUT, '(A)') ' DEBUG: INP NAMELIST PARAMETERS'
-    write(UNIT_OUTPUT, '(A)') ' ************************************'
-    write(UNIT_OUTPUT, *)
-    
-    ! Print flow parameters
-    write(UNIT_OUTPUT, '(A)') ' FLOW PARAMETERS:'
-    write(UNIT_OUTPUT, '(A,F12.6)') '   AK       = ', AK
-    write(UNIT_OUTPUT, '(A,F12.6)') '   ALPHA    = ', ALPHA
-    write(UNIT_OUTPUT, '(A,F12.6)') '   EMACH    = ', EMACH
-    write(UNIT_OUTPUT, '(A,F12.6)') '   DELTA    = ', DELTA
-    write(UNIT_OUTPUT, '(A,F12.6)') '   GAM      = ', GAM
-    write(UNIT_OUTPUT, '(A,L12)')   '   PHYS     = ', PHYS
-    write(UNIT_OUTPUT, *)
-    
-    ! Print mesh parameters
-    write(UNIT_OUTPUT, '(A)') ' MESH PARAMETERS:'
-    write(UNIT_OUTPUT, '(A,I12)')   '   IMIN     = ', IMIN
-    write(UNIT_OUTPUT, '(A,I12)')   '   IMAXI    = ', IMAXI
-    write(UNIT_OUTPUT, '(A,I12)')   '   JMIN     = ', JMIN
-    write(UNIT_OUTPUT, '(A,I12)')   '   JMAXI    = ', JMAXI
-    write(UNIT_OUTPUT, '(A,L12)')   '   AMESH    = ', AMESH
-    write(UNIT_OUTPUT, *)
-    
-    ! Print boundary condition parameters
-    write(UNIT_OUTPUT, '(A)') ' BOUNDARY CONDITIONS:'
-    write(UNIT_OUTPUT, '(A,I12)')   '   BCTYPE   = ', BCTYPE
-    write(UNIT_OUTPUT, '(A,I12)')   '   BCFOIL   = ', BCFOIL
-    write(UNIT_OUTPUT, '(A,F12.6)') '   F        = ', F
-    write(UNIT_OUTPUT, '(A,F12.6)') '   H        = ', H
-    write(UNIT_OUTPUT, '(A,F12.6)') '   POR      = ', POR
-    write(UNIT_OUTPUT, *)
-    
-    ! Print solver parameters
-    write(UNIT_OUTPUT, '(A)') ' SOLVER PARAMETERS:'
-    write(UNIT_OUTPUT, '(A,F12.6)') '   CVERGE   = ', CVERGE
-    write(UNIT_OUTPUT, '(A,F12.6)') '   DVERGE   = ', DVERGE
-    write(UNIT_OUTPUT, '(A,F12.6)') '   EPS      = ', EPS
-    write(UNIT_OUTPUT, '(A,I12)')   '   MAXIT    = ', MAXIT
-    write(UNIT_OUTPUT, '(A,I12)')   '   IPRTER   = ', IPRTER
-    write(UNIT_OUTPUT, '(A,I12)')   '   ICUT     = ', ICUT
-    write(UNIT_OUTPUT, *)
-    
-    ! Print circulation and Kutta condition parameters
-    write(UNIT_OUTPUT, '(A)') ' CIRCULATION AND KUTTA CONDITION:'
-    write(UNIT_OUTPUT, '(A,F12.6)') '   CLSET    = ', CLSET
-    write(UNIT_OUTPUT, '(A,F12.6)') '   WCIRC    = ', WCIRC
-    write(UNIT_OUTPUT, '(A,L12)')   '   FCR      = ', FCR
-    write(UNIT_OUTPUT, '(A,L12)')   '   KUTTA    = ', KUTTA
-    write(UNIT_OUTPUT, *)
-    
-    ! Print control parameters
-    write(UNIT_OUTPUT, '(A)') ' CONTROL PARAMETERS:'
-    write(UNIT_OUTPUT, '(A,I12)')   '   PSTART   = ', PSTART
-    write(UNIT_OUTPUT, '(A,L12)')   '   PSAVE    = ', PSAVE
-    write(UNIT_OUTPUT, '(A,I12)')   '   PRTFLO   = ', PRTFLO
-    write(UNIT_OUTPUT, '(A,I12)')   '   SIMDEF   = ', SIMDEF
-    write(UNIT_OUTPUT, *)
-    
-    ! Print airfoil parameters
-    write(UNIT_OUTPUT, '(A)') ' AIRFOIL PARAMETERS:'
-    write(UNIT_OUTPUT, '(A,I12)')   '   NU       = ', NU
-    write(UNIT_OUTPUT, '(A,I12)')   '   NL       = ', NL
-    write(UNIT_OUTPUT, '(A,F12.6)') '   RIGF     = ', RIGF
-    write(UNIT_OUTPUT, '(A,I12)')   '   IFLAP    = ', IFLAP
-    write(UNIT_OUTPUT, '(A,F12.6)') '   DELFLP   = ', DELFLP
-    write(UNIT_OUTPUT, '(A,F12.6)') '   FLPLOC   = ', FLPLOC
-    write(UNIT_OUTPUT, '(A,I12)')   '   IDLA     = ', IDLA
-    write(UNIT_OUTPUT, *)
-    
-    ! Print relaxation parameters
-    write(UNIT_OUTPUT, '(A)') ' RELAXATION PARAMETERS:'
-    write(UNIT_OUTPUT, '(A,3F8.3)') '   WE       = ', WE
-    write(UNIT_OUTPUT, *)
-    
-    ! Print viscous wedge parameters
-    write(UNIT_OUTPUT, '(A)') ' VISCOUS WEDGE PARAMETERS:'
-    write(UNIT_OUTPUT, '(A,I12)')   '   NWDGE    = ', NWDGE
-    write(UNIT_OUTPUT, '(A,E12.3)') '   REYNLD   = ', REYNLD
-    write(UNIT_OUTPUT, '(A,F12.6)') '   WCONST   = ', WCONST
-    write(UNIT_OUTPUT, *)
-    
-    ! Print XIN array if allocated
-    if (allocated(XIN) .and. IMAXI > 0) then
-      write(UNIT_OUTPUT, '(A)') ' XIN ARRAY:'
-      write(UNIT_OUTPUT, '(A,I0,A,I0)') '   (I=', IMIN, ' TO ', IMAXI, ')'
-      write(UNIT_OUTPUT, '(6F12.6)') (XIN(I), I=IMIN, IMAXI)
-      write(UNIT_OUTPUT, *)
-    end if
-    
-    ! Print YIN array if allocated
-    if (allocated(YIN) .and. JMAXI > 0) then
-      write(UNIT_OUTPUT, '(A)') ' YIN ARRAY:'
-      write(UNIT_OUTPUT, '(A,I0,A,I0)') '   (J=', JMIN, ' TO ', JMAXI, ')'
-      write(UNIT_OUTPUT, '(6F12.6)') (YIN(J), J=JMIN, JMAXI)
-      write(UNIT_OUTPUT, *)
-    end if
-    
-    ! Print XU array if NU > 0
-    if (NU > 0) then
-      write(UNIT_OUTPUT, '(A)') ' XU ARRAY:'
-      write(UNIT_OUTPUT, '(A,I0)') '   (I=1 TO ', NU, ')'
-      write(UNIT_OUTPUT, '(6F12.6)') (XU(I), I=1, NU)
-      write(UNIT_OUTPUT, *)
-    end if
-    
-    ! Print YU array if NU > 0
-    if (NU > 0) then
-      write(UNIT_OUTPUT, '(A)') ' YU ARRAY:'
-      write(UNIT_OUTPUT, '(A,I0)') '   (I=1 TO ', NU, ')'
-      write(UNIT_OUTPUT, '(6F12.6)') (YU(I), I=1, NU)
-      write(UNIT_OUTPUT, *)
-    end if
-    
-    ! Print XL array if NL > 0
-    if (NL > 0) then
-      write(UNIT_OUTPUT, '(A)') ' XL ARRAY:'
-      write(UNIT_OUTPUT, '(A,I0)') '   (I=1 TO ', NL, ')'
-      write(UNIT_OUTPUT, '(6F12.6)') (XL(I), I=1, NL)
-      write(UNIT_OUTPUT, *)
-    end if
-    
-    ! Print YL array if NL > 0
-    if (NL > 0) then
-      write(UNIT_OUTPUT, '(A)') ' YL ARRAY:'
-      write(UNIT_OUTPUT, '(A,I0)') '   (I=1 TO ', NL, ')'
-      write(UNIT_OUTPUT, '(6F12.6)') (YL(I), I=1, NL)
-      write(UNIT_OUTPUT, *)
-    end if
-    
-    write(UNIT_OUTPUT, '(A)') ' ************************************'
-    write(UNIT_OUTPUT, '(A)') ' END OF INP NAMELIST DEBUG OUTPUT'
-    write(UNIT_OUTPUT, '(A)') ' ************************************'
-    write(UNIT_OUTPUT, *)
-    
-  end subroutine PRINT_INP_NAMELIST
 
   ! FIXPLT - Sets up arrays for CPPLOT subroutine
   subroutine FIXPLT()

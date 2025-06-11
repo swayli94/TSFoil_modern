@@ -4,6 +4,11 @@
 module common_data
   implicit none
   private
+  
+  ! Mesh size parameter - change this to adjust mesh dimensions
+  integer, parameter :: N_MESH_POINTS = 100
+  
+  public :: N_MESH_POINTS  ! Make it public so other modules can use it
   public :: IMIN, IMAX, IUP, IDOWN, ILE, ITE, JMIN, JMAX, JUP, JLOW, JTOP, JBOT, J1, J2
   public :: AK, ALPHA, DUB, GAM1, RTK, PHYS
   public :: IREF, ICUT, KSTEP, ABORT1
@@ -36,7 +41,7 @@ module common_data
   public :: YFREE, YTUN, JMXF, JMXT
   public :: B, BETA0, BETA1, BETA2, PSI0, PSI1, PSI2
   public :: ALPHA0, ALPHA1, ALPHA2, XSING, OMEGA0, OMEGA1, OMEGA2, JET
-  public :: XI, ARG, REST  ! Working arrays for DRAG function
+  public :: XI, ARG  ! Working arrays for DRAG function
   public :: THETA  ! COM33: angle array for each mesh point
   public :: EMU, POLD, DCIRC, OUTERR  ! Missing variables from COM18
   public :: BIGRL, IRL, JRL  ! COM32: maximum residual tracking variables
@@ -44,7 +49,7 @@ module common_data
   public :: UNIT_INPUT, UNIT_OUTPUT, UNIT_RESTART
   public :: UNIT_DLAOUT_INPUT, UNIT_DLAOUT_OUTPUT  ! DLAOUT input and output files
   public :: UNIT_SUMMARY, UNIT_CPXS, UNIT_MMAP, UNIT_CNVG, UNIT_MESH, UNIT_CPMP
-  public :: check_fp_exceptions
+  ! public :: check_fp_exceptions  ! Moved to no_use_subroutines.f90
   
   ! Mesh indices (from COMMON /COM1/)
   integer :: IMIN, IMAX       ! grid i-range
@@ -56,8 +61,8 @@ module common_data
   integer :: J1, J2           ! auxiliary indices
 
   ! Main solution arrays
-  real, allocatable :: P(:,:)    ! Potential solution array
-  real, allocatable :: X(:), Y(:) ! Coordinate arrays
+  real :: P(N_MESH_POINTS+2, N_MESH_POINTS+1)    ! Potential solution array
+  real :: X(N_MESH_POINTS+2), Y(N_MESH_POINTS+2) ! Coordinate arrays, room for extra points
 
   ! Flow parameters (from COMMON /COM2/ and logical PHYS)
   real :: AK       ! freestream similarity parameter
@@ -74,16 +79,17 @@ module common_data
   logical :: ABORT1 ! input abort flag
 
   ! Analytical mesh arrays (from COMMON /COM4/)
-  real, allocatable :: XIN(:) ! mesh x-coordinates
-  real, allocatable :: YIN(:) ! mesh y-coordinates
-  logical :: AMESH           ! use analytical mesh
+  real :: XIN(N_MESH_POINTS+2)  ! mesh x-coordinates, room for 2 extra points in CKMESH
+  real :: YIN(N_MESH_POINTS+2)  ! mesh y-coordinates, room for 2 extra points in CKMESH
+  logical :: AMESH              ! use analytical mesh
 
-  ! Shared data replacing COMMON / COM5/ - / COM30/
   ! COM5: mesh derivative arrays
-  real :: XDIFF(100), YDIFF(100)
+  real :: XDIFF(N_MESH_POINTS), YDIFF(N_MESH_POINTS)
   
   ! COM6: surface and flow arrays
-  real :: FL(100), FXL(100), FU(100), FXU(100), CAMBER(100), THICK(100), XFOIL(100), VOL
+  real :: FU(N_MESH_POINTS), FL(N_MESH_POINTS), FXU(N_MESH_POINTS), FXL(N_MESH_POINTS)
+  real :: CAMBER(N_MESH_POINTS), THICK(N_MESH_POINTS), XFOIL(N_MESH_POINTS)
+  real :: VOL
   integer :: IFOIL
   
   ! COM7: boundary extrapolation/coefficient flags
@@ -97,7 +103,8 @@ module common_data
   
   ! COM9: airfoil definition flags
   integer :: BCFOIL, NL, NU
-  real :: XL(100), XU(100), YL(100), YU(100), PERCENT, CHORD
+  real :: XL(N_MESH_POINTS), XU(N_MESH_POINTS), YL(N_MESH_POINTS), YU(N_MESH_POINTS)
+  real :: PERCENT, CHORD
   
   ! Airfoil control parameters
   real :: RIGF        ! rigidity factor for transonic effects
@@ -107,7 +114,7 @@ module common_data
   integer :: FSYM     ! symmetry flag
   
   ! COM10: free-stream/tunnel arrays
-  real :: YFREE(100), YTUN(100), GAM
+  real :: YFREE(N_MESH_POINTS), YTUN(N_MESH_POINTS), GAM
   integer :: JMXF, JMXT
   
   ! COM11: restart and case storage
@@ -116,7 +123,7 @@ module common_data
   logical :: PSAVE
   integer :: PSTART
   character(len=4) :: TITLE(20), TITLEO(20)
-  real :: XOLD(100), YOLD(100)
+  real :: XOLD(N_MESH_POINTS), YOLD(N_MESH_POINTS)
   
   ! COM12: wall/tunnel constants  
   real :: F, H, HALFPI, PI, RTKPOR, TWOPI
@@ -136,14 +143,14 @@ module common_data
   
   ! COM17: special boundary coefficient arrays
   real :: CYYBLC, CYYBLD, CYYBLU, CYYBUC, CYYBUD, CYYBUU
-  real :: FXLBC(100), FXUBC(100)
+  real :: FXLBC(N_MESH_POINTS), FXUBC(N_MESH_POINTS)
   integer :: ITEMP1, ITEMP2
     
   ! COM18: error tracking and diagnostics
   real :: ERROR
   integer :: I1, I2, IERROR, JERROR, IPRINT, LERR, NVAR, STATUS, NEXT
-  real :: EMU(100,2)   ! Missing from COM18 - circulation factors
-  real :: POLD(100,2)  ! Missing from COM18 - old pressure values  
+  real :: EMU(N_MESH_POINTS,2)   ! Missing from COM18 - circulation factors
+  real :: POLD(N_MESH_POINTS,2)  ! Missing from COM18 - old pressure values  
   real :: DCIRC        ! Missing from COM18 - circulation change
   logical :: OUTERR    ! Missing from COM18 - outer iteration error (logical)
   
@@ -152,27 +159,29 @@ module common_data
   integer :: IRL, JRL  ! Location indices of maximum residual
   
   ! COM19: jump arrays and pressure jump
-  real :: PJUMP(100)
+  real :: PJUMP(N_MESH_POINTS)
   
   ! COM19: tridiagonal solver arrays
-  real :: DIAG(100), RHS(100), SUB(100), SUP(100)
+  real :: DIAG(N_MESH_POINTS), RHS(N_MESH_POINTS), SUB(N_MESH_POINTS), SUP(N_MESH_POINTS)
   
   ! COM20: mesh midpoint storage
-  real :: XMID(100), YMID(100)
+  real :: XMID(N_MESH_POINTS), YMID(N_MESH_POINTS)
   
   ! COM22: central differencing coefficients
-  real :: CXC(100), CXL(100), CXR(100), CXXC(100), CXXL(100), CXXR(100), C1(100)
+  real :: CXC(N_MESH_POINTS), CXL(N_MESH_POINTS), CXR(N_MESH_POINTS)
+  real :: CXXC(N_MESH_POINTS), CXXL(N_MESH_POINTS), CXXR(N_MESH_POINTS)
+  real :: C1(N_MESH_POINTS)
   
   ! COM23: boundary differencing coefficients
-  real :: CYYC(100), CYYD(100), CYYU(100)
+  real :: CYYC(N_MESH_POINTS), CYYD(N_MESH_POINTS), CYYU(N_MESH_POINTS)
   integer :: IVAL
   
   ! COM24: far-field boundary arrays
-  real :: DTOP(100), DBOT(100), DUP(100), DDOWN(100)
-  real :: VTOP(100), VBOT(100), VUP(100), VDOWN(100)
+  real :: DTOP(N_MESH_POINTS), DBOT(N_MESH_POINTS), DUP(N_MESH_POINTS), DDOWN(N_MESH_POINTS)
+  real :: VTOP(N_MESH_POINTS), VBOT(N_MESH_POINTS), VUP(N_MESH_POINTS), VDOWN(N_MESH_POINTS)
   
   ! COM25: plot arrays
-  real :: CPL(100), CPU(100)
+  real :: CPL(N_MESH_POINTS), CPU(N_MESH_POINTS)
   integer :: IDLA
   
   ! COM27: transonic similarity state
@@ -185,19 +194,19 @@ module common_data
   real :: CIRCFF, FHINV, POR, CIRCTE
   
   ! COM30: general workspace arrays  
-  real :: XI(100), ARG(100), REST(204)  ! Additional variables needed by other modules
-  real :: XCP(100), CPP(304)  ! Arrays for DLAOUT subroutine - CP interpolation points and values
+  real :: XI(N_MESH_POINTS), ARG(N_MESH_POINTS) ! Additional variables needed by other modules
+  real :: XCP(N_MESH_POINTS), CPP(304)  ! Arrays for DLAOUT subroutine - CP interpolation points and values
   integer :: JLIN(3)           ! Line indices for printing
-  character(len=1) :: IPC(100) ! Flow regime indicators
-  real :: VT(100,2)            ! Velocity time history
+  character(len=1) :: IPC(N_MESH_POINTS) ! Flow regime indicators
+  real :: VT(N_MESH_POINTS,2)            ! Velocity time history
 
   ! COM33: angle array for each mesh point
-  real :: THETA(100,100)
+  real :: THETA(N_MESH_POINTS,N_MESH_POINTS)
   
   ! COM34: viscous wedge parameters  
   integer :: NWDGE
   real :: REYNLD, WCONST
-  real :: WSLP(100,2)  ! Viscous wedge slopes
+  real :: WSLP(N_MESH_POINTS,2)  ! Viscous wedge slopes
   real :: XSHK(2,3)    ! Shock x-locations
   real :: THAMAX(2,3)  ! Maximum wedge angles  
   real :: AM1(2,3)     ! Mach numbers upstream of shocks
@@ -225,17 +234,6 @@ contains
   subroutine initialize_common()
     implicit none
 
-    if (allocated(XIN)) deallocate(XIN)
-    if (allocated(YIN)) deallocate(YIN)
-    if (allocated(P)) deallocate(P)
-    if (allocated(X)) deallocate(X)
-    if (allocated(Y)) deallocate(Y)    ! Allocate arrays with original TSFOIL dimensions plus room for extra points
-    allocate(XIN(102))    ! Original XIN(100) + room for 2 extra points in CKMESH
-    allocate(YIN(102))    ! Original YIN(100) + room for 2 extra points in CKMESH
-    allocate(P(102,101))  ! Original P(102,101)
-    allocate(X(102))      ! Original X(100) + room for extra points
-    allocate(Y(102))      ! Original Y(100) + room for extra points
-
     ! Initialize arrays to zero
     P = 0.0
     X = 0.0
@@ -245,9 +243,9 @@ contains
 
     ! Default initial values (will be overridden by READIN with IMAXI/JMAXI from input)
     IMIN = 1
-    IMAX = 100    ! Temporary default - will be set to IMAXI in READIN
+    IMAX = N_MESH_POINTS
     JMIN = 1
-    JMAX = 100    ! Temporary default - will be set to JMAXI in READIN
+    JMAX = N_MESH_POINTS
     
     ! Initialize mesh indices to safe defaults (will be recalculated later)
     IUP = 2
@@ -313,7 +311,7 @@ contains
     JMXF = 56
     MAXIT = 500
     NL = 75
-    NU = 100
+    NU = N_MESH_POINTS
     IPRTER = 10
     JMAXI = 64
     JMXT = 48
@@ -385,7 +383,7 @@ contains
     YTUN(49:) = 0.0
     
     ! Initialize default airfoil upper surface coordinates (from BLOCK DATA)
-    XU(1:100) = (/ 0.000008, 0.000167, 0.000391, 0.000799, 0.001407, 0.002153, 0.003331, 0.005336, 0.008648, 0.014583, &
+    XU(1:N_MESH_POINTS) = (/ 0.000008, 0.000167, 0.000391, 0.000799, 0.001407, 0.002153, 0.003331, 0.005336, 0.008648, 0.014583, &
                    0.023481, 0.033891, 0.040887, 0.053973, 0.056921, 0.058456, 0.059966, 0.061445, 0.062909, 0.065925, &
                    0.068785, 0.071482, 0.074007, 0.075322, 0.076603, 0.077862, 0.079112, 0.080445, 0.081819, 0.083269, &
                    0.084841, 0.086702, 0.088848, 0.091378, 0.094413, 0.098308, 0.103104, 0.109010, 0.116244, 0.125452, &
@@ -396,7 +394,7 @@ contains
                    0.706936, 0.728406, 0.738649, 0.761390, 0.777010, 0.792241, 0.809068, 0.824992, 0.836953, 0.857188, &
                    0.875621, 0.898268, 0.913686, 0.927686, 0.939804, 0.952002, 0.971789, 0.989100, 0.997860, 1.000000 /)
     
-    YU(1:100) = (/ 0.000787, 0.003092, 0.004538, 0.006137, 0.007683, 0.009056, 0.010675, 0.012803, 0.015607, 0.019624, &
+    YU(1:N_MESH_POINTS) = (/ 0.000787, 0.003092, 0.004538, 0.006137, 0.007683, 0.009056, 0.010675, 0.012803, 0.015607, 0.019624, &
                    0.024441, 0.029035, 0.031698, 0.035966, 0.036837, 0.037277, 0.037700, 0.038103, 0.038497, 0.039276, &
                    0.039986, 0.040625, 0.041195, 0.041483, 0.041756, 0.042019, 0.042274, 0.042539, 0.042804, 0.043079, &
                    0.043368, 0.043700, 0.044072, 0.044497, 0.044989, 0.045595, 0.046312, 0.047154, 0.048132, 0.049301, &
@@ -451,52 +449,5 @@ contains
     THETA = 0.0
 
   end subroutine initialize_common
-
-  ! Subroutine to check for floating-point exceptions
-  subroutine check_fp_exceptions()
-    use, intrinsic :: ieee_exceptions
-    implicit none
-    
-    logical :: flag_invalid, flag_overflow, flag_divide_by_zero, flag_underflow, flag_inexact
-    
-    ! Get the status of all floating-point exception flags
-    call ieee_get_flag(ieee_invalid, flag_invalid)
-    call ieee_get_flag(ieee_overflow, flag_overflow)
-    call ieee_get_flag(ieee_divide_by_zero, flag_divide_by_zero)
-    call ieee_get_flag(ieee_underflow, flag_underflow)
-    call ieee_get_flag(ieee_inexact, flag_inexact)
-    
-    ! Report any exceptions that occurred
-    if (flag_invalid) then
-      write(*,'(A)') 'WARNING: IEEE_INVALID exception occurred (NaN generated)'
-    end if
-    
-    if (flag_overflow) then
-      write(*,'(A)') 'WARNING: IEEE_OVERFLOW exception occurred'
-    end if
-    
-    if (flag_divide_by_zero) then
-      write(*,'(A)') 'WARNING: IEEE_DIVIDE_BY_ZERO exception occurred'
-    end if
-    
-    if (flag_underflow) then
-      write(*,'(A)') 'WARNING: IEEE_UNDERFLOW exception occurred'
-    end if
-    
-    if (flag_inexact) then
-      write(*,'(A)') 'INFO: IEEE_INEXACT exception occurred (normal for most calculations)'
-    end if
-    
-    ! Halt the program if any critical exceptions occurred
-    if (flag_invalid .or. flag_overflow .or. flag_divide_by_zero) then
-      write(*,'(A)') 'FATAL: Critical floating-point exceptions detected!'
-      write(*,'(A)') 'Program terminating due to floating-point errors.'
-      stop
-    end if
-
-    write(*,'(A)') 'Floating-point exception check completed successfully.'
-    
-  end subroutine check_fp_exceptions
-
 
 end module common_data
