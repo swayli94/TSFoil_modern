@@ -647,13 +647,15 @@ contains
       if (I_P1 == ILE) write(UNIT_OUTPUT, '(25X, A, 45X, A)') 'AIRFOIL LEADING EDGE', 'AIRFOIL LEADING EDGE'
       
       ! Print main data line with exact original format
-      write(UNIT_OUTPUT, '(1H ,I3,3F12.6,4X,2F12.6,2X,60A1)') I_P1, X(I_P1), CPL(I_P1), EM1L(I_P1), CPU(I_P1), EM1U(I_P1), LINE1_P1
+      write(UNIT_OUTPUT, '(1H ,I3,3F12.6,4X,2F12.6,2X,60A1)') &
+            I_P1, X(I_P1), CPL(I_P1), EM1L(I_P1), CPU(I_P1), EM1U(I_P1), LINE1_P1
       
       ! Print trailing edge marker exactly like original
       if (I_P1 == ITE) write(UNIT_OUTPUT, '(25X, A, 44X, A)') 'AIRFOIL TRAILING EDGE', 'AIRFOIL TRAILING EDGE'
       
       ! Save data for plotting exactly like original
-      write(UNIT_CPXS, '(2x,i3,2x,f7.4,2x,f10.5,2x,f7.4,2x,f10.5,2x,f7.4)') IPLOT_P1, X(I_P1), CPU(I_P1), EM1U(I_P1), CPL(I_P1), EM1L(I_P1)
+      write(UNIT_CPXS, '(2x,i3,2x,f7.4,2x,f10.5,2x,f7.4,2x,f10.5,2x,f7.4)') &
+            IPLOT_P1, X(I_P1), CPU(I_P1), EM1U(I_P1), CPL(I_P1), EM1L(I_P1)
     end do
         ! Mach number warning exactly like original
     if (IEM == 1) then
@@ -770,7 +772,7 @@ contains
           EM1(MQ) = EMACH1(U)
         end do
         write(UNIT_OUTPUT,'(1X,I3,2X,F10.6,1X,3(2X,3F11.6,1X))') &
-          I, X(I), (CPPR(M), PYPR(M), EM1(M), M=1,MPREND-MPR+1)
+              I, X(I), (CPPR(M), PYPR(M), EM1(M), M=1,MPREND-MPR+1)
       end do
     end do
     
@@ -1256,7 +1258,8 @@ contains
     close(UNIT_RESTART)
     write(UNIT_OUTPUT, '(A)') 'Restart data successfully loaded'
       ! Write restart information to output file (like original)
-    write(UNIT_OUTPUT, '(A, /, 1X, 20A4, /, A, /, A, I4, /, A, I4, /, A, I4, /, A, I4, /, A, F12.8, /, A, F12.8, /, A, F12.8, /, A, F12.8, /, A, F12.8, /, A, F12.8)') &
+    write(UNIT_OUTPUT, '(A, /, 1X, 20A4, /, A, /, A, I4, /, A, I4, /, A, I4, /, A, I4, /, &
+          &A, F12.8, /, A, F12.8, /, A, F12.8, /, A, F12.8, /, A, F12.8, /, A, F12.8)') &
         '1P INITIALIZED FROM PREVIOUS RUN TITLED', &
         TITLEO, &
         ' WHICH HAD THE FOLLOWING VALUES', &

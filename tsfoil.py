@@ -19,8 +19,8 @@ import imageio
 NUM_LEVELS = 100
 CBAR_TIKCS = 0.1
 
-PROGRAM_NAME = "tsfoil_modern.exe"
-PROGRAM_NAME = "tsfoil.exe"
+# PROGRAM_NAME = "tsfoil"   # for old version
+PROGRAM_NAME = "tsfoil_modern"
 
 
 class Plotter(object):
@@ -254,9 +254,9 @@ class TSFoil(Plotter):
         self.LEN_HEADER   = 26
         self.basename_foil= ""
         
-        # Set the path to tsfoil.exe
+        # Set the path to the executable
         if tsfoil_exe_path is None:
-            # Default to tsfoil.exe in the same directory as this script
+            # Default to executable in the same directory as this script
             script_dir = os.path.dirname(os.path.abspath(__file__))
             self.tsfoil_exe_path = os.path.join(script_dir, PROGRAM_NAME)
         else:
@@ -264,11 +264,30 @@ class TSFoil(Plotter):
             if os.path.isfile(tsfoil_exe_path):
                 self.tsfoil_exe_path = tsfoil_exe_path
             elif os.path.isdir(tsfoil_exe_path):
-                # If directory provided, append tsfoil.exe
+                # If directory provided, append executable name
                 self.tsfoil_exe_path = os.path.join(tsfoil_exe_path, PROGRAM_NAME)
             else:
                 # Assume it's a full path even if file doesn't exist yet
                 self.tsfoil_exe_path = tsfoil_exe_path
+                
+        # Ensure executable permissions on Linux/Unix systems
+        self._ensure_executable_permissions()
+
+    def _ensure_executable_permissions(self):
+        """Ensure the executable file has proper permissions on Linux/Unix systems"""
+        import stat
+        if os.path.exists(self.tsfoil_exe_path):
+            try:
+                # Get current permissions
+                current_permissions = os.stat(self.tsfoil_exe_path).st_mode
+                # Add execute permission for owner, group, and others
+                new_permissions = current_permissions | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH
+                os.chmod(self.tsfoil_exe_path, new_permissions)
+                print(f"Set executable permissions for: {self.tsfoil_exe_path}")
+            except PermissionError:
+                print(f"Warning: Could not set executable permissions for {self.tsfoil_exe_path}")
+        else:
+            print(f"Note: Executable file {self.tsfoil_exe_path} not found yet")
 
     def load(self, datfile):
         x, y = np.loadtxt(datfile, skiprows=1).T
@@ -367,7 +386,7 @@ class TSFoil(Plotter):
 
         self.gen_inp(self.inp_file)
         
-        # Check if tsfoil.exe exists
+        # Check if executable exists
         if not os.path.isfile(self.tsfoil_exe_path):
             raise FileNotFoundError(f"{PROGRAM_NAME} not found at: {self.tsfoil_exe_path}")
         
@@ -382,7 +401,7 @@ class TSFoil(Plotter):
         # Use subprocess instead of os.system for better error handling
         import subprocess
         try:
-            # Use relative path for input file to avoid tsfoil.exe path length limitations
+            # Use relative path for input file to avoid path length limitations
             cmd = [self.tsfoil_exe_path, inp_file_relative]
             print(f"Command: {cmd}")
             
