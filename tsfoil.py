@@ -20,6 +20,7 @@ NUM_LEVELS = 100
 CBAR_TIKCS = 0.1
 
 PROGRAM_NAME = "tsfoil_modern.exe"
+PROGRAM_NAME = "tsfoil.exe"
 
 
 class Plotter(object):
@@ -336,6 +337,11 @@ class TSFoil(Plotter):
         df = self.extract_smry()
         df["converged"] = self.extract_cnvg()
         df.insert(0,'airfoil', self.current_foil)
+        
+        # Add input parameters to the DataFrame
+        df["mach"] = self.config.get("EMACH", 0.0)
+        df["alpha"] = self.config.get("ALPHA", 0.0)
+        
         x, y = self.extract_mesh()
         df["mesh_x"] = [x]
         df["mesh_y"] = [y]
