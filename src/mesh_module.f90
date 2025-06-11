@@ -9,8 +9,8 @@ contains
 
   ! Build analytical X and Y mesh points
   subroutine AYMESH()
-    use common_data, only: XIN, YIN, IMINO, IMAXI, JMINO, JMAXI, BCTYPE
-    use common_data, only: F, H, HALFPI, PI, RTKPOR, TWOPI
+    use common_data, only: XIN, YIN, IMAXI, JMAXI, BCTYPE
+    use common_data, only: HALFPI, PI
     use math_module, only: ARF
     implicit none
     integer :: I, IMA, IM2, IM2P1, JM2, JMA, J
@@ -20,7 +20,7 @@ contains
     real :: DX,FACT,DETA,C,C1_LOCAL,C2,C3
     real :: TOOPI
     real :: BT1,BHT1,XHT1,T1
-    real :: BT2,BHT2,BHT3,T2,T12,BT12,TBT2
+    real :: BT2,BHT2,BHT3,T12,BT12,TBT2
     real :: BT3,BHT4,BHT5,BHT6,XHT3,T3
     real, dimension(401) :: XH, BXH
     real, dimension(100) :: BX
@@ -128,7 +128,7 @@ contains
 
   ! Ensure odd/even mesh counts before/after tail and slit
   subroutine CKMESH()
-    use common_data, only: XIN, YIN, IMIN, IMAX, ILE, ITE, JMIN, JMAX, JLOW, JUP, ICUT, IREF, UNIT_OUTPUT
+    use common_data, only: XIN, YIN, IMIN, IMAX, ITE, JMIN, JMAX, JLOW, JUP, ICUT, IREF, UNIT_OUTPUT
     implicit none
     integer :: I, LP, L, J
 
@@ -276,7 +276,7 @@ contains
   
   ! Refine mesh and interpolate solution onto finer grid
   subroutine REFINE()
-    use common_data, only: XIN, YIN, XMID, YMID, P, X, Y, IMIN, IMAX, JMIN, JMAX, ILE, ITE, JLOW, JUP, IREF, ICUT
+    use common_data, only: XIN, YIN, XMID, YMID, P, X, Y, IMIN, IMAX, JMIN, JMAX, ILE, ITE, JLOW, JUP, IREF
     use common_data, only: NWDGE, WSLP
     implicit none
     integer :: I, J, K, JMAXO_LOCAL, JE, JST, IM2, JM2, JL
@@ -284,6 +284,11 @@ contains
     real :: PT(100)
     real :: D1, D2, CL1, CL2, CU1, CU2, RATIO
     real :: XLEO_LOCAL  ! Must be REAL to store X-coordinate
+
+    JE = 0
+    JST = 0
+    JL = 0
+
 
     ! Store original leading edge position and index for viscous wedge processing
     XLEO_LOCAL = X(ILE)
@@ -459,7 +464,7 @@ contains
     
   ! Compute JLOW and JUP for mesh Y array
   subroutine JSLIT(Y_MESH)
-    use common_data, only: JMIN, JMAX, JLOW, JUP
+    use common_data, only: JMIN, JLOW, JUP
     implicit none
     real, intent(in) :: Y_MESH(:)
     integer :: j

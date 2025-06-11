@@ -168,8 +168,8 @@ contains
   
   ! Function PY computes V = DP/DY at point I,J
   function PY(I, J) result(result_py)
-    use common_data, only: IMIN, IMAX, JMIN, JMAX, JUP, JLOW, ILE, ITE, P, Y, &
-                          YDIFF, ALPHA, FXL, FXU, PJUMP
+    use common_data, only: JMIN, JMAX, JUP, JLOW, ILE, ITE, P
+    use common_data, only: YDIFF, ALPHA, FXL, FXU, PJUMP
     implicit none
     integer, intent(in) :: I, J
     real :: result_py
@@ -258,7 +258,7 @@ contains
   ! Function LIFT computes pressure drag coefficient by integrating
   ! U*V around airfoil using trapezoidal rule.
   function DRAG(CDFACT_in) result(result_drag)
-    use common_data, only: P, X, ILE, ITE, JUP, JLOW, CJUP, CJUP1, CJLOW, CJLOW1
+    use common_data, only: X, ILE, ITE, JUP, JLOW, CJUP, CJUP1, CJLOW, CJLOW1
     use common_data, only: FXU, FXL, XI, ARG
     implicit none
     real, intent(in) :: CDFACT_in
@@ -356,8 +356,8 @@ contains
   ! Compute constants ALPHA0, ALPHA1, ALPHA2, OMEGA0, OMEGA1, OMEGA2
   ! Used in formula for doublet in slotted wind tunnel with subsonic freestream
   subroutine DROOTS
-    use common_data, only: F, H, HALFPI, PI, RTKPOR, TWOPI
-    use common_data, only: ALPHA0, ALPHA1, ALPHA2, XSING, OMEGA0, OMEGA1, OMEGA2, JET
+    use common_data, only: F, HALFPI, PI, RTKPOR, TWOPI
+    use common_data, only: ALPHA0, ALPHA1, ALPHA2, OMEGA0, OMEGA1, OMEGA2
     implicit none
     real :: ERROR, TEMP, Q, DALPHA
     integer :: I
@@ -429,8 +429,8 @@ contains
   ! Compute constants BETA0, BETA1, BETA2, PSI0, PSI1, PSI2
   ! Used in formula for vortex in slotted wind tunnel with subsonic freestream
   subroutine VROOTS
-    use common_data, only: F, H, HALFPI, PI, RTKPOR, TWOPI
-    use common_data, only: B, BETA0, BETA1, BETA2, PSI0, PSI1, PSI2
+    use common_data, only: F, PI, RTKPOR
+    use common_data, only: BETA0, BETA1, BETA2, PSI0, PSI1, PSI2
     implicit none
     real :: ERROR, TEMP, Q, DBETA
     integer :: I
@@ -502,16 +502,15 @@ contains
   ! Computes Murman or Yoshihara viscous wedge and modifies slope conditions
   ! to account for jump in displacement thickness due to shock/boundary layer interaction
   subroutine VWEDGE
-    use common_data, only: P, X, Y, IMIN, IMAX, IUP, IDOWN, ILE, ITE
-    use common_data, only: JMIN, JMAX, JUP, JLOW, JTOP, JBOT, J1, J2
-    use common_data, only: AK, ALPHA, DUB, GAM1, RTK, XDIFF, YDIFF
-    use common_data, only: CL, DELTA, DELRT2, EMACH, EMROOT, PHYS, PRTFLO, SIMDEF
-    use common_data, only: SONVEL, VFACT, YFACT
+    use common_data, only: X, ILE, ITE
+    use common_data, only: JUP, JLOW
+    use common_data, only: GAM1, XDIFF
+    use common_data, only: DELTA
+    use common_data, only: SONVEL
     use common_data, only: NWDGE, WSLP, XSHK, THAMAX, AM1, ZETA, NVWPRT, WCONST, REYNLD, NISHK
     implicit none
     integer :: I, J, N, M, ISK, ISK3, ISK1, ISTART, JMP, NISHK_LOC
     real :: SIGN, U, V1, AM1SQ, REYX, CF, DSTAR1, DXS, AETA, XEND
-    logical :: found_shock
 
     ! Zero out previous wedge slopes
     do J = 1, 2

@@ -49,7 +49,6 @@ module common_data
   public :: UNIT_INPUT, UNIT_OUTPUT, UNIT_RESTART
   public :: UNIT_DLAOUT_INPUT, UNIT_DLAOUT_OUTPUT  ! DLAOUT input and output files
   public :: UNIT_SUMMARY, UNIT_CPXS, UNIT_MMAP, UNIT_CNVG, UNIT_MESH, UNIT_CPMP
-  ! public :: check_fp_exceptions  ! Moved to no_use_subroutines.f90
   
   ! Mesh indices (from COMMON /COM1/)
   integer :: IMIN, IMAX       ! grid i-range
@@ -96,10 +95,10 @@ module common_data
   real :: CJUP, CJUP1, CJLOW, CJLOW1
 
   ! COM8: solver control parameters
-  real :: CVERGE, DVERGE, TOL, RSAVE
+  real :: CVERGE, DVERGE
   real :: WI = 1.05                 ! SOR relaxation factor (from COM18)
   real :: WE(3)
-  integer :: IPRTER, MAXIT, NEX, N_O, NPRINT, NPT
+  integer :: IPRTER, MAXIT
   
   ! COM9: airfoil definition flags
   integer :: BCFOIL, NL, NU
@@ -144,11 +143,10 @@ module common_data
   ! COM17: special boundary coefficient arrays
   real :: CYYBLC, CYYBLD, CYYBLU, CYYBUC, CYYBUD, CYYBUU
   real :: FXLBC(N_MESH_POINTS), FXUBC(N_MESH_POINTS)
-  integer :: ITEMP1, ITEMP2
     
   ! COM18: error tracking and diagnostics
   real :: ERROR
-  integer :: I1, I2, IERROR, JERROR, IPRINT, LERR, NVAR, STATUS, NEXT
+  integer :: I1, I2, IERROR, JERROR
   real :: EMU(N_MESH_POINTS,2)   ! Missing from COM18 - circulation factors
   real :: POLD(N_MESH_POINTS,2)  ! Missing from COM18 - old pressure values  
   real :: DCIRC        ! Missing from COM18 - circulation change

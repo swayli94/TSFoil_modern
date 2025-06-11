@@ -123,7 +123,7 @@ contains
     ! spacing constants and entered into arrays FXUBC and
     ! FXLBC for use in subroutine SYOR.
     use common_data, only: IMIN, IMAX, IUP, IDOWN, JMIN, JMAX, JTOP, JBOT, J1, J2
-    use common_data, only: ILE, ITE, JUP, JLOW, FXLBC, FXUBC, FXL, FXU
+    use common_data, only: ILE, ITE, FXLBC, FXUBC, FXL, FXU
     use common_data, only: AK, ALPHA, BCTYPE, POR, IREF, KSTEP, IFOIL
     use common_data, only: CYYBLU, CYYBUD, WSLP
     implicit none
@@ -182,13 +182,13 @@ contains
     ! boundary conditions at JBOT and JTOP.
     ! Called by - SYOR.
     
-    use common_data, only: P, X, Y, IMIN, IMAX, IUP, IDOWN, ILE, ITE, &
-                          JMIN, JMAX, JUP, JLOW, JTOP, JBOT, J1, J2, &
-                          AK, ALPHA, DUB, GAM1, RTK, &
-                          XDIFF, YDIFF, &
-                          DIAG, RHS, SUB, SUP, &
-                          CYYC, CYYD, CYYU, IVAL, &
-                          BCTYPE, CIRCFF, FHINV, POR, CIRCTE, &
+    use common_data, only: P, X, Y, IUP, IDOWN, &
+                          JMIN, JMAX, JTOP, JBOT, &
+                          AK, RTK, &
+                          XDIFF, &
+                          DIAG, RHS, &
+                          CYYD, CYYU, IVAL, &
+                          BCTYPE, CIRCFF, FHINV, POR, &
                           UNIT_OUTPUT
     implicit none
     
@@ -545,10 +545,10 @@ contains
   subroutine EXTRAP(XP, YP, PNEW)
     ! COMPUTE P AT X, YP USING FAR FIELD SOLUTION ! FOR SUBSONIC FLOW
     ! CALLED BY - GUESSP.
-    use common_data, only: AK, DUB, GAM1, RTK, BCTYPE, CIRCFF, FHINV, POR, CIRCTE
-    use common_data, only: F, H, HALFPI, PI, RTKPOR, TWOPI
-    use common_data, only: B, BETA0, BETA1, BETA2, PSI0, PSI1, PSI2
-    use common_data, only: ALPHA0, ALPHA1, ALPHA2, XSING, OMEGA0, OMEGA1, OMEGA2, JET
+    use common_data, only: AK, DUB, RTK, BCTYPE, CIRCFF
+    use common_data, only: F, H, PI, TWOPI
+    use common_data, only: B, BETA0, BETA2, PSI0, PSI2
+    use common_data, only: ALPHA0, ALPHA1, XSING, OMEGA0, OMEGA1, JET
     implicit none
     real, intent(in) :: XP, YP    ! Coordinates where P is to be computed
     real, intent(out) :: PNEW     ! Computed potential value    ! Local variables

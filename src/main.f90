@@ -12,8 +12,6 @@ program tsfoil_main
   use numerical_solvers
   implicit none
 
-  integer :: ios
-
   ! Program header
   write(*,'(A)') '==============================================='
   write(*,'(A)') '     TSFOIL - Transonic Small-Perturbation     '

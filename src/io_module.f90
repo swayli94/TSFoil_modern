@@ -666,7 +666,7 @@ contains
   ! PRTFLO = 2, ALL J LINES EXCEPT J0.
   ! PRTFLO = 3, THREE J LINES AROUND JERROR.
   subroutine PRTFLD()
-    use common_data, only: P, X, Y, JMIN, JMAX, JUP, JLOW, JERROR, CPFACT, VFACT, CPSTAR
+    use common_data, only: X, Y, JMIN, JMAX, JUP, JLOW, JERROR, CPFACT, VFACT, CPSTAR
     use common_data, only: JLIN, IMIN, IMAX, PHYS, PRTFLO, UNIT_OUTPUT
     use math_module, only: PX, PY, EMACH1
     implicit none
@@ -760,7 +760,7 @@ contains
   ! PRTMC - Print flow type map at each grid point
   ! Matches original PRTMC functionality exactly
   subroutine PRTMC()
-    use common_data, only: P, IMIN, IMAX, IUP, IDOWN, JMIN, JMAX, IPC, VT, C1, CXL, CXC, CXR, UNIT_OUTPUT
+    use common_data, only: P, IUP, IDOWN, JMIN, JMAX, IPC, VT, C1, CXL, CXC, CXR, UNIT_OUTPUT
     implicit none    
     integer :: I, J, K
     character(len=1), parameter :: ch_par = 'P'    ! Parabolic (sonic)
@@ -867,7 +867,7 @@ contains
   ! Prints pressure coefficient and flow angle on Y=-H and Y=+H, 
   ! and plots CP along side of tabulation. 
   subroutine PRTWAL()
-    use common_data, only: P, X, Y, CPFACT, VFACT, YFACT, JMIN, JMAX, IMIN, IMAX, &
+    use common_data, only: P, X, Y, CPFACT, VFACT, YFACT, JMIN, JMAX, &
                           IUP, IDOWN, JBOT, JTOP, JTOP, JBOT, &
                           BCTYPE, CIRCFF, FHINV, POR, F, H, CPSTAR, &
                           XDIFF, UNIT_OUTPUT
@@ -889,7 +889,6 @@ contains
     
     ! Data statements
     character(len=1), parameter :: BLANK = ' ', DOT = '.', STAR = '*', DASH = '-'
-    character(len=1), parameter :: IBS(9) = 'BODYSLOT'
     
     ! Print single variables
     I2_LOCAL = 3 * BCTYPE
@@ -1006,7 +1005,7 @@ contains
   ! SAVEP moves data into old data locations and writes it on tape if requested
   ! Matches original SAVEP functionality exactly
   subroutine SAVEP()
-    use common_data, only: P, X, Y, IMIN, IMAX, JMIN, JMAX, TITLE, TITLEO
+    use common_data, only: P, X, IMIN, IMAX, JMIN, JMAX, TITLE, TITLEO
     use common_data, only: YIN, ALPHA, H, POR, YFACT, VFACT
     use common_data, only: ALPHAO, CLOLD, DELTAO, DUBO, EMACHO, VOLO
     use common_data, only: IMINO, IMAXO, JMINO, JMAXO, XOLD, YOLD
@@ -1261,10 +1260,10 @@ contains
   ! Integrates around a contour enclosing the body and along all shocks inside the contour
   ! CALLED BY - PRINT.
   subroutine CDCOLE()
-    use common_data, only: P, X, Y, IMIN, IMAX, IUP, IDOWN, ILE, ITE
-    use common_data, only: JMIN, JMAX, JUP, JLOW, JTOP, JBOT
-    use common_data, only: AK, ALPHA, DUB, GAM1, RTK, CJUP, CJUP1, CJLOW, CJLOW1
-    use common_data, only: CDFACT, CLFACT, CMFACT, CPFACT, CPSTAR, YFACT
+    use common_data, only: X, Y, IMIN, IMAX, IUP, ILE, ITE
+    use common_data, only: JMIN, JMAX, JUP, JLOW
+    use common_data, only: AK, GAM1, CJUP, CJUP1, CJLOW, CJLOW1
+    use common_data, only: CDFACT, YFACT
     use common_data, only: SONVEL, FXL, FXU
     use common_data, only: XI, ARG  ! Working arrays
     use common_data, only: UNIT_OUTPUT, UNIT_SUMMARY
@@ -1310,12 +1309,12 @@ contains
         
         if (ULE > SONVEL) then
           write(UNIT_OUTPUT, '("31H1SHOCK WAVE IS ATTACHED TO BODY/", &
-               "33H MOMENTUM INTEGRAL CANNOT BE DONE/", &
-               "45H DRAG OBTAINED FROM SURFACE PRESSURE INTEGRAL/")')
+               & "33H MOMENTUM INTEGRAL CANNOT BE DONE/", &
+               & "45H DRAG OBTAINED FROM SURFACE PRESSURE INTEGRAL/")')
         else
           write(UNIT_OUTPUT, '("41H1DETACHED SHOCK WAVE IS TOO CLOSE TO BODY/", &
-               "33H MOMENTUM INTEGRAL CANNOT BE DONE/", &
-               "45H DRAG OBTAINED FROM SURFACE PRESSURE INTEGRAL/")')
+               & "33H MOMENTUM INTEGRAL CANNOT BE DONE/", &
+               & "45H DRAG OBTAINED FROM SURFACE PRESSURE INTEGRAL/")')
         end if
         
         CD = DRAG(CDFACT)
@@ -1549,10 +1548,11 @@ contains
     write(UNIT_OUTPUT, '("1CALCULATION OF DRAG COEFFICIENT BY MOMENTUM INTEGRAL METHOD")')
     
     write(UNIT_OUTPUT, '("0BOUNDARIES OF CONTOUR USED", 15X, "18HCONTRIBUTION TO CD/", &
-           "16H UPSTREAM    X =", F12.6, 15X, "8HCDUP   =", F12.6/, &
-           "16H DOWNSTREAM  X =", F12.6, 15X, "8HCDDOWN =", F12.6/, &
-           "16H TOP         Y =", F12.6, 15X, "8HCDTOP  =", F12.6/, &
-           "16H BOTTOM      Y =", F12.6, 15X, "8HCDBOT  =", F12.6)') XU_LOC, CDUP, XD_LOC, CDDOWN, YT_LOC, CDTOP, YB_LOC, CDBOT
+           & "16H UPSTREAM    X =", F12.6, 15X, "8HCDUP   =", F12.6, &
+           & "16H DOWNSTREAM  X =", F12.6, 15X, "8HCDDOWN =", F12.6, &
+           & "16H TOP         Y =", F12.6, 15X, "8HCDTOP  =", F12.6, &
+           & "16H BOTTOM      Y =", F12.6, 15X, "8HCDBOT  =", F12.6)') &
+           & XU_LOC, CDUP, XD_LOC, CDDOWN, YT_LOC, CDTOP, YB_LOC, CDBOT
     
     if (XD_LOC < 1.0) then
       write(UNIT_OUTPUT, '("16H BODY AFT OF X =", F12.6, 15X, "8HCDBODY =", F12.6)') XD_LOC, CDBODY
@@ -1564,12 +1564,12 @@ contains
     
     if (NSHOCK > 0 .and. LPRT2 == 0) then
       write(UNIT_OUTPUT, '("43H0NOTE - ALL SHOCKS CONTAINED WITHIN CONTOUR/", &
-           "30H CDWAVE EQUALS TOTAL WAVE DRAG")')
+           &"30H CDWAVE EQUALS TOTAL WAVE DRAG")')
     end if
     
     if (NSHOCK > 0 .and. LPRT2 == 1) then
       write(UNIT_OUTPUT, '("52H0NOTE - ONE OR MORE SHOCKS EXTEND OUTSIDE OF CONTOUR/", &
-           "38H CDWAVE DOES NOT EQUAL TOTAL WAVE DRAG")')
+           &"38H CDWAVE DOES NOT EQUAL TOTAL WAVE DRAG")')
     end if
     
     write(UNIT_OUTPUT, '("51H0DRAG CALCULATED FROM MOMENTUM INTEGRAL    CD     =", F12.6)') CD
@@ -1785,7 +1785,7 @@ contains
   ! Linear interpolation between mesh points is used
   ! Called by - PRINT.
   subroutine M1LINE()
-    use common_data, only: P, X, Y, IMIN, IMAX, JMIN, JMAX, JLOW
+    use common_data, only: X, Y, IMIN, IMAX, JMIN, JMAX, JLOW
     use common_data, only: AK, SONVEL, YFACT, BCTYPE
     use common_data, only: UNIT_OUTPUT
     use math_module, only: PX
@@ -1809,7 +1809,7 @@ contains
       PX2 = PX(IMIN, J)
       M = 0
       if (J == JLOW .and. NPTS /= 0) then
-        write(UNIT_OUTPUT, '(2X,''BODY LOCATION'')')
+        write(UNIT_OUTPUT, '(2X,"BODY LOCATION")')
       end if
       
       IMM = IMIN + 1
@@ -1819,7 +1819,8 @@ contains
         
         if (PX1 > SONVEL .and. PX2 > SONVEL) cycle
         if (PX1 < SONVEL .and. PX2 < SONVEL) cycle
-        if (NPTS == 0) write(UNIT_OUTPUT, '(''1SONIC LINE COORDINATES''/6X,''Y'',10X,''XSONIC''//)')
+        if (NPTS == 0) write(UNIT_OUTPUT, &
+          '("1SONIC LINE COORDINATES", /, 6X, "Y", 10X, "XSONIC", /, /)')
         
         M = M + 1
         RATIO = (SONVEL - PX1) / (PX2 - PX1)
@@ -1828,8 +1829,10 @@ contains
         XSLPRT(NPTS) = XSONIC(M)
         YSLPRT(NPTS) = YPR
         if (NPTS >= 200) then
-          write(UNIT_OUTPUT, '(''0***** CAUTION *****''/'' NUMBER OF SONIC POINTS EXCEEDED 200''/&
-           '' ARRAY DIMENSION EXCEEDED''/'' EXECUTION OF SUBROUTINE M1LINE TERMINATED'')')
+          write(UNIT_OUTPUT, '("0***** CAUTION *****",&
+           &" NUMBER OF SONIC POINTS EXCEEDED 200",&
+           &" ARRAY DIMENSION EXCEEDED",&
+           &" EXECUTION OF SUBROUTINE M1LINE TERMINATED")')
           return
         end if
       end do
@@ -1845,14 +1848,16 @@ contains
     YX = Y(JMAX)
     do N = 1, NPTS
       if (YSLPRT(N) /= YM .and. YSLPRT(N) /= YX) cycle
-        if (AK > 0.0) write(UNIT_OUTPUT, '(''0***** CAUTION *****''/&
-           '' SONIC LINE HAS REACHED A BOUNDARY''/&
-           '' THIS VIOLATES ASSUMPTIONS USED TO DERIVE BOUNDARY CONDITIONS''/&
-           '' SOLUTION IS PROBABLY INVALID'')')
-      if (AK < 0.0 .and. BCTYPE == 1) write(UNIT_OUTPUT, '(''0***** CAUTION *****''/&
-           '' SONIC LINE HAS REACHED A BOUNDARY''/&
-           '' THIS VIOLATES ASSUMPTIONS USED TO DERIVE BOUNDARY CONDITIONS''/&
-           '' SOLUTION IS PROBABLY INVALID'')')
+
+        if (AK > 0.0) write(UNIT_OUTPUT, '("0***** CAUTION *****", &
+          &" SONIC LINE HAS REACHED A BOUNDARY", &
+          &" THIS VIOLATES ASSUMPTIONS USED TO DERIVE BOUNDARY CONDITIONS", &
+          &" SOLUTION IS PROBABLY INVALID")')
+
+      if (AK < 0.0 .and. BCTYPE == 1) write(UNIT_OUTPUT, '("0***** CAUTION *****",&
+           &" SONIC LINE HAS REACHED A BOUNDARY",&
+           &" THIS VIOLATES ASSUMPTIONS USED TO DERIVE BOUNDARY CONDITIONS",&
+           &" SOLUTION IS PROBABLY INVALID")')
     end do
     
     XMIN = -0.75

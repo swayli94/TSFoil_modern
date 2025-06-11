@@ -11,13 +11,13 @@ contains
   ! SYOR COMPUTES NEW P AT ALL MESH POINTS.
   ! CALLED BY - SOLVE.
   subroutine SYOR()
-    use common_data, only: P, X, Y, IMIN, IMAX, IUP, IDOWN, ILE, ITE
+    use common_data, only: P, X, IUP, IDOWN, ILE, ITE
     use common_data, only: JMIN, JMAX, JUP, JLOW, JTOP, JBOT, J1, J2
-    use common_data, only: AK, GAM1, CVERGE, ERROR, IERROR, JERROR
+    use common_data, only: AK, ERROR, IERROR, JERROR
     use common_data, only: CXL, CXC, CXR, CXXL, CXXC, CXXR, C1
     use common_data, only: CYYC, CYYD, CYYU, DIAG, RHS, SUB, SUP, IVAL
     use common_data, only: CYYBUC, CYYBUU, CYYBLC, CYYBLD, FXUBC, FXLBC
-    use common_data, only: PJUMP, FCR, KUTTA, EPS, WI
+    use common_data, only: PJUMP, FCR, EPS, WI
     use common_data, only: EMU, POLD, I1, I2, OUTERR, BIGRL, IRL, JRL
     use solver_module, only: BCEND
     implicit none
@@ -185,15 +185,15 @@ contains
 
   ! Main iteration loop: solver, convergence, and flow updates
   subroutine SOLVE()
-    use common_data, only: MAXIT, ERROR, CVERGE, DVERGE, IPRTER, PRTFLO, ABORT1
-    use common_data, only: IREF, WE, EPS, IMIN, IMAX, JMIN, JMAX, IUP, IDOWN
-    use common_data, only: ILE, ITE, JUP, JLOW, JTOP, JBOT, J1, J2, KSTEP
-    use common_data, only: P, X, Y, AK, ALPHA, DUB, GAM1, RTK
+    use common_data, only: MAXIT, ERROR, CVERGE, DVERGE, IPRTER, ABORT1
+    use common_data, only: IREF, WE, EPS, IMIN, JMIN, JMAX, IUP, IDOWN
+    use common_data, only: JTOP, JBOT, KSTEP
+    use common_data, only: P, Y, AK
     use common_data, only: EMU, POLD, DCIRC, OUTERR, I1, I2, IERROR, JERROR
     use common_data, only: BIGRL, IRL, JRL
-    use common_data, only: THETA, BCTYPE, CIRCFF, FHINV, POR, CIRCTE
-    use common_data, only: NWDGE, WSLP, XSHK, THAMAX, AM1, ZETA, NVWPRT, NISHK
-    use common_data, only: WCONST, REYNLD, WI, C1
+    use common_data, only: THETA, BCTYPE
+    use common_data, only: NWDGE, XSHK, THAMAX, AM1, ZETA, NVWPRT, NISHK
+    use common_data, only: WI, C1
     use common_data, only: CLFACT, CMFACT, UNIT_OUTPUT, UNIT_CNVG
     use math_module, only: LIFT, PITCH, VWEDGE
     use solver_module, only: SETBC
@@ -212,9 +212,16 @@ contains
     write(UNIT_OUTPUT, '(1H1)')
     
     ! Calculate maximum iterations based on refinement level
-    if (IREF == 2) MAXITM = MAXIT / 4
-    if (IREF == 1) MAXITM = MAXIT / 2
-    if (IREF == 0) MAXITM = MAXIT
+    if (IREF == 0) then
+      MAXITM = MAXIT
+    else if (IREF == 1) then
+      MAXITM = MAXIT / 2
+    else if (IREF == 2) then
+      MAXITM = MAXIT / 4
+    else
+      write(UNIT_OUTPUT, '(A,I2)') 'Invalid refinement level: ', IREF
+      stop 1
+    end if
     
     ! Set relaxation parameter based on refinement level
     KK = 3 - IREF
@@ -383,7 +390,7 @@ contains
   ! 2.) Circulation for farfield boundary = CIRCFF
   ! 3.) Jump in P along slit Y=0, X > 1 by linear interpolation between CIRCTE and CIRCFF
   subroutine RECIRC()
-    use common_data, only: P, X, IMIN, IMAX, ITE, JUP, JLOW, CJUP, CJUP1, CJLOW, CJLOW1
+    use common_data, only: P, X, IMAX, ITE, JUP, JLOW, CJUP, CJUP1, CJLOW, CJLOW1
     use common_data, only: PJUMP, CIRCFF, CIRCTE, DCIRC, WCIRC, CLSET, CLFACT, KUTTA
     implicit none
     integer :: I
@@ -420,7 +427,7 @@ contains
   ! For lifting free air flows, doublet strength is set equal to model volume.
   ! For other flows, the nonlinear contribution is added.
   subroutine REDUB()
-    use common_data, only: P, X, Y, IMIN, IMAX, JMIN, JMAX
+    use common_data, only: P, Y, IMIN, IMAX, JMIN, JMAX
     use common_data, only: DUB, GAM1, XDIFF, BCTYPE, CIRCFF, VOL, XI, ARG
     use math_module, only: TRAP
     implicit none
@@ -474,7 +481,7 @@ contains
   ! Updates far field boundary conditions for subsonic freestream flows.
   ! CALLED BY - SOLVE.
   subroutine RESET()
-    use common_data, only: P, IMIN, IMAX, JMIN, JMAX, JUP, JLOW, KSTEP
+    use common_data, only: P, IMIN, IMAX, JMIN, JMAX, JUP, KSTEP
     use common_data, only: DUP, DDOWN, DTOP, DBOT, VUP, VDOWN, VTOP, VBOT
     use common_data, only: CIRCFF, DUB, BCTYPE
     implicit none

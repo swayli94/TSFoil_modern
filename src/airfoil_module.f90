@@ -13,7 +13,7 @@ contains
   ! If PHYS = .FALSE. all dimensions except X are normalized by chord length and thickness ratio
   ! Called by - BODYil geometry: thickness, camber, volume
   subroutine BODY()
-    use common_data, only: IMIN, IMAX, ILE, ITE, XIN, AMESH
+    use common_data, only: IMIN, IMAX, ILE, ITE, XIN
     use common_data, only: FL, FXL, FU, FXU, CAMBER, THICK, VOL, XFOIL, IFOIL
     use common_data, only: BCFOIL, NL, NU, XL, XU, YL, YU, RIGF, IFLAP, DELFLP, FLPLOC
     use common_data, only: PHYS, DELTA, FSYM, UNIT_INPUT
@@ -25,6 +25,9 @@ contains
     real :: DELINV, DY1, DY2, XP, YP, DYP
     real :: VOLU, VOLL, DFLAP, SDFLAP, DELY
     real :: FNU, FNL
+
+    DELINV = 1.0
+    if (PHYS) DELINV = 1.0/DELTA
 
     ! Number of points on airfoil
     IFOIL = ITE - ILE + 1
@@ -88,8 +91,6 @@ contains
 
     case (3)
       ! Airfoil ordinates read in: cubic spline interpolation
-      DELINV = 1.0
-      if (PHYS) DELINV = 1.0/DELTA
       ! Upper surface
       DY1 = (YU(2) - YU(1))/(XU(2) - XU(1))
       DY2 = (YU(NU) - YU(NU-1))/(XU(NU) - XU(NU-1))
@@ -121,16 +122,13 @@ contains
       end do
 
     case (4)      ! Jameson's airfoil input format
-      DELINV = 1.0
-
-      if (PHYS) DELINV = 1.0/DELTA
 
       read(UNIT_INPUT,'(1X)')
       read(UNIT_INPUT,'(3F10.0)') FSYM, FNU, FNL
 
-      ISYM = FSYM
-      NU = FNU
-      NL = FNL
+      ISYM = int(FSYM)
+      NU = int(FNU)
+      NL = int(FNL)
 
       read(UNIT_INPUT,'(1X)')
       read(UNIT_INPUT,'(2F10.0)') (XU(N), YU(N), N=1, NU)
