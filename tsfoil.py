@@ -258,14 +258,23 @@ class TSFoil(Plotter):
         if tsfoil_exe_path is None:
             # Default to executable in the same directory as this script
             script_dir = os.path.dirname(os.path.abspath(__file__))
-            self.tsfoil_exe_path = os.path.join(script_dir, PROGRAM_NAME)
+            # Detect Windows and use .exe extension
+            if os.name == 'nt' or sys.platform.startswith('win'):
+                exe_name = PROGRAM_NAME + ".exe"
+            else:
+                exe_name = PROGRAM_NAME
+            self.tsfoil_exe_path = os.path.join(script_dir, exe_name)
         else:
             # Use user-defined path
             if os.path.isfile(tsfoil_exe_path):
                 self.tsfoil_exe_path = tsfoil_exe_path
             elif os.path.isdir(tsfoil_exe_path):
                 # If directory provided, append executable name
-                self.tsfoil_exe_path = os.path.join(tsfoil_exe_path, PROGRAM_NAME)
+                if os.name == 'nt' or sys.platform.startswith('win'):
+                    exe_name = PROGRAM_NAME + ".exe"
+                else:
+                    exe_name = PROGRAM_NAME
+                self.tsfoil_exe_path = os.path.join(tsfoil_exe_path, exe_name)
             else:
                 # Assume it's a full path even if file doesn't exist yet
                 self.tsfoil_exe_path = tsfoil_exe_path
