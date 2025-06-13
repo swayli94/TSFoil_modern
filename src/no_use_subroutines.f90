@@ -912,6 +912,781 @@ contains
     end do
   end subroutine REFINE
 
+  ! SAVEP: Save solution
+  ! UNUSED: Never called in current implementation
+  ! SAVEP moves data into old data locations and writes it on tape if requested
+  subroutine SAVEP()
+    use common_data, only: P, X, IMIN, IMAX, JMIN, JMAX, TITLE, TITLEO
+    use common_data, only: YIN, ALPHA, H, POR, YFACT, VFACT
+    use common_data, only: ALPHAO, CLOLD, DELTAO, DUBO, EMACHO, VOLO
+    use common_data, only: IMINO, IMAXO, JMINO, JMAXO, XOLD, YOLD
+    use common_data, only: CL, EMACH, DELTA, VOL, DUB, PSAVE, UNIT_OUTPUT
+    implicit none
+    integer :: I, J
+    
+    ! Reset parameters scaled in subroutine SCALE (matches original exactly)
+    ALPHA = ALPHA * VFACT
+    H = H * YFACT
+    POR = POR / YFACT
+    do J = JMIN, JMAX
+      YIN(J) = YIN(J) * YFACT
+    end do
+    
+    ! Move restart data to old block (matches original exactly)
+    do I = 1, 20
+      TITLEO(I) = TITLE(I)
+    end do
+    IMINO = IMIN
+    JMINO = JMIN
+    IMAXO = IMAX
+    JMAXO = JMAX
+    CLOLD = CL
+    EMACHO = EMACH
+    ALPHAO = ALPHA
+    DELTAO = DELTA
+    VOLO = VOL
+    DUBO = DUB
+    
+    do I = IMINO, IMAXO
+      XOLD(I) = X(I)
+    end do
+    
+    do J = JMINO, JMAXO
+      YOLD(J) = YIN(J)
+    end do
+    
+    ! Check to see if restart is to be written (matches original logic)
+    if (.not. PSAVE) return
+    
+    ! Write restart data to unit 15 (matching original exactly)
+    write(UNIT_OUTPUT, '(20A4)') TITLEO
+    write(UNIT_OUTPUT, '(4I5)') IMAXO, JMAXO, IMINO, JMINO
+    write(UNIT_OUTPUT, '(8F10.6)') CLOLD, EMACHO, ALPHAO, DELTAO, VOLO, DUBO
+    write(UNIT_OUTPUT, '(8F10.6)') (XOLD(I), I=IMINO, IMAXO)
+    write(UNIT_OUTPUT, '(8F10.6)') (YOLD(J), J=JMINO, JMAXO)
+    do I = IMINO, IMAXO
+      write(UNIT_OUTPUT, '(8F10.6)') (P(J,I), J=JMINO, JMAXO)
+    end do    
+  end subroutine SAVEP
+
+  ! PRINT1_OLD: Print Cp and Mach along body and build plot arrays
+  ! SIMPLIFIED: Use simplified version in io_module.f90
+  ! Print Cp and Mach along body and build plot arrays
+  ! Prints pressure coefficient and Mach number on Y=0 line, and plots CP along side of print
+  subroutine PRINT1_OLD()
+    use common_data
+    use math_module, only: PX, EMACH1, LIFT, PITCH
+    implicit none
+    
+    ! Local variables exactly matching original - renamed to avoid conflicts
+    integer :: I_P1, K_P1, NCOL_P1, NCOLS_P1, NCOLU_P1, NCOLL_P1, IEM, KT_P1, IPLOT_P1
+    real :: CL_val, CM, CPMIN_P1, CPMAX_P1, CPLARG_P1, UNPCOL_P1, COL_P1
+    real :: UL_P1, UU_P1, CJ01, CJ02
+    real :: EM1L(N_MESH_POINTS), EM1U(N_MESH_POINTS), YM(N_MESH_POINTS)
+    character(len=1) :: LINE1_P1(60)
+    character(len=2) :: TMAC_P1(2)
+    character(len=1), parameter :: IB_P1 = ' ', IL_P1 = 'L', IU_P1 = 'U', IS_P1 = '*', IBB_P1 = 'B'
+    
+    ! Initialize data arrays exactly like original
+    TMAC_P1(1) = 'M1'
+    TMAC_P1(2) = 'K1'
+    
+    ! Compute coefficients exactly like original
+    CL_val = LIFT(CLFACT)
+    CM = PITCH(CMFACT)
+    CPMIN_P1 = 1.0E37
+    CPMAX_P1 = -CPMIN_P1
+    IEM = 0
+    CJ01 = -Y(JLOW)/(Y(JUP)-Y(JLOW))
+    CJ02 = Y(JUP)/(Y(JUP)-Y(JLOW))
+    
+    ! Main computation loop exactly matching original logic
+    do I_P1 = IMIN, IMAX
+      UL_P1 = CJLOW*PX(I_P1,JLOW) - CJLOW1*PX(I_P1,JLOW-1)
+      if (I_P1 > ITE) UL_P1 = CJ01*PX(I_P1,JUP) + CJ02*PX(I_P1,JLOW)
+      if (I_P1 < ILE) UL_P1 = CJ01*PX(I_P1,JUP) + CJ02*PX(I_P1,JLOW)
+      CPL(I_P1) = -2.0 * UL_P1 * CPFACT
+      EM1L(I_P1) = EMACH1(UL_P1)
+      if (EM1L(I_P1) > 1.3) IEM = 1
+      
+      UU_P1 = CJUP*PX(I_P1,JUP) - CJUP1*PX(I_P1,JUP+1)
+      if (I_P1 > ITE) UU_P1 = UL_P1
+      if (I_P1 < ILE) UU_P1 = UL_P1
+      CPU(I_P1) = -2.0 * UU_P1 * CPFACT
+      EM1U(I_P1) = EMACH1(UU_P1)
+      if (EM1U(I_P1) > 1.3) IEM = 1
+      
+      CPMAX_P1 = max(CPMAX_P1, CPU(I_P1), CPL(I_P1))
+      CPMIN_P1 = min(CPMIN_P1, CPU(I_P1), CPL(I_P1))
+    end do
+    
+    CPLARG_P1 = max(CPMAX_P1, abs(CPMIN_P1))
+    UNPCOL_P1 = CPLARG_P1 / 29.0
+    
+    ! Locate CP* for printer plot exactly like original
+    COL_P1 = -CPSTAR / UNPCOL_P1
+    NCOL_P1 = sign(int(abs(COL_P1) + 0.5), nint(COL_P1))
+    NCOLS_P1 = NCOL_P1 + 30
+      ! Print single variables using exact original format
+    write(UNIT_OUTPUT, '(A, /, 2X, A)') &
+          '1 FORCE COEFFICIENTS, PRESSURE COEFFICIENT, AND MACH NUMBER', &
+          '(OR SIMILARITY PARAMETER) ON BODY AND DIVIDING STREAM LINE.'
+    write(UNIT_OUTPUT, '(20X,11H FINAL MESH)')
+    
+    write(UNIT_OUTPUT, '(1H0,9X,4HCL =,F10.6/10X,4HCM =,F10.6/9X,5HCP* =,F10.6)') CL_val, CM, CPSTAR
+    write(UNIT_SUMMARY, '(1H0,9X,4HCL =,F16.12/10X,4HCM =,F16.12/9X,5HCP* =,F16.12)') CL_val, CM, CPSTAR
+    
+    ! Check for detached shock - exactly like original with GO TO 70 logic
+    if (CPL(IMIN) < CPSTAR .and. CPL(IMIN+1) > CPSTAR) then
+      write(UNIT_OUTPUT, '(A, //, A)') '0', &
+           ' DETACHED SHOCK WAVE UPSTREAM OF X-MESH,SOLUTION TERMINATED.'
+      return
+    end if
+    
+    ! Print column headers with exact original formatting
+    write(UNIT_OUTPUT, '(A, 27X, A, 23X, A, /, 28X, A, 24X, A)') '0', 'LOWER', 'UPPER', 'Y=0-', 'Y=0+'
+    
+    KT_P1 = 2
+    if (PHYS) KT_P1 = 1
+    write(UNIT_OUTPUT, '(3X, A, 8X, A, 10X, A, 10X, A2, 14X, A, 10X, A2, /)') 'I', 'X', 'CP', TMAC_P1(KT_P1), 'CP', TMAC_P1(KT_P1)
+      IPLOT_P1 = 0
+      
+    ! Main output loop with exact original logic
+    do I_P1 = IMIN, IMAX
+
+      ! Initialize line array 
+      do K_P1 = 1, 60
+        LINE1_P1(K_P1) = IB_P1
+      end do
+      
+      ! Plot upper surface CP with bounds checking
+      COL_P1 = -CPU(I_P1) / UNPCOL_P1
+      NCOL_P1 = sign(int(abs(COL_P1) + 0.5), nint(COL_P1))
+      NCOLU_P1 = NCOL_P1 + 30
+      if (NCOLU_P1 >= 1 .and. NCOLU_P1 <= 60) LINE1_P1(NCOLU_P1) = IU_P1
+      
+      ! Plot lower surface CP with bounds checking
+      COL_P1 = -CPL(I_P1) / UNPCOL_P1
+      NCOL_P1 = sign(int(abs(COL_P1) + 0.5), nint(COL_P1))
+      NCOLL_P1 = NCOL_P1 + 30
+      if (NCOLL_P1 >= 1 .and. NCOLL_P1 <= 60) LINE1_P1(NCOLL_P1) = IL_P1
+      if (NCOLL_P1 == NCOLU_P1 .and. NCOLL_P1 >= 1 .and. NCOLL_P1 <= 60) LINE1_P1(NCOLL_P1) = IBB_P1
+      if (abs(NCOLS_P1) < 61 .and. NCOLS_P1 >= 1 .and. NCOLS_P1 <= 60) LINE1_P1(NCOLS_P1) = IS_P1
+        ! Print leading edge marker exactly like original
+      if (I_P1 == ILE) write(UNIT_OUTPUT, '(25X, A, 45X, A)') 'AIRFOIL LEADING EDGE', 'AIRFOIL LEADING EDGE'
+      
+      ! Print main data line with exact original format
+      write(UNIT_OUTPUT, '(1H ,I3,3F12.6,4X,2F12.6,2X,60A1)') &
+            I_P1, X(I_P1), CPL(I_P1), EM1L(I_P1), CPU(I_P1), EM1U(I_P1), LINE1_P1
+      
+      ! Print trailing edge marker exactly like original
+      if (I_P1 == ITE) write(UNIT_OUTPUT, '(25X, A, 44X, A)') 'AIRFOIL TRAILING EDGE', 'AIRFOIL TRAILING EDGE'
+      
+    end do
+        ! Mach number warning exactly like original
+    if (IEM == 1) then
+      if (PHYS) then
+        write(UNIT_OUTPUT, '(A, /, A, /, A, A)') &
+              '0***** CAUTION *****', &
+              ' MAXIMUM MACH NUMBER EXCEEDS 1.3', &
+              ' SHOCK JUMPS IN ERROR IF UPSTREAM NORMAL MACH NUMBER GREATER T', &
+              'HAN 1.3'
+      end if
+    end if
+      
+    ! Print coordinate arrays exactly like original
+    do I_P1 = JMIN, JMAX
+      YM(I_P1) = Y(I_P1) * YFACT
+    end do
+    write(UNIT_OUTPUT, '(1H0//9X,7HY(J) J=,I3,3H TO,I3/(6X,6F12.6))') JMIN, JMAX, (YM(I_P1), I_P1=JMIN, JMAX)
+    write(UNIT_OUTPUT, '(1H0//9X,7HX(I) I=,I3,3H TO,I3/(6X,6F12.6))') IMIN, IMAX, (X(I_P1), I_P1=IMIN, IMAX)
+    write(UNIT_OUTPUT, '(1H0//9X,7HY(J) J=,I3,3H TO,I3/(6X,6F12.6))') JMIN, JMAX, (YM(I_P1), I_P1=JMIN, JMAX)
+    
+    ! Output airfoil surface data
+    call OUTPUT_CP_MACH_XLINE(CL_val, CM, EM1L, EM1U)
+
+    call OUTPUT_MESH()
+    
+  end subroutine PRINT1_OLD
+
+  ! Print map of flow types at each grid point
+  ! PRTMC - Print flow type map at each grid point
+  ! UNUSED: Replaced by OUTPUT_FIELD in io_module.f90
+  subroutine PRTMC()
+    use common_data, only: P, IUP, IDOWN, JMIN, JMAX, IPC, VT, C1, CXL, CXC, CXR, UNIT_OUTPUT
+    implicit none    
+    integer :: I, J, K
+    character(len=1), parameter :: ch_par = 'P'    ! Parabolic (sonic)
+    character(len=1), parameter :: ch_hyp = 'H'    ! Hyperbolic (supersonic)  
+    character(len=1), parameter :: ch_shock = 'S'  ! Shock point
+    character(len=1), parameter :: ch_ell = '-'    ! Elliptic (subsonic)
+    character(len=1), parameter :: ch_blank = ' '  ! Blank
+
+    ! Print header
+    write(UNIT_OUTPUT, '(A,/,28X,A,/,28X,A,/,28X,A,//)')  &
+      '1 FLOW AT EACH GRID POINT.  P PARABOLIC',   &
+      'H HYPERBOLIC',                              &
+      'S SHOCK',                                   &
+      '- ELLIPTIC'
+
+    ! Initialize IPC array
+    do I = 1, 50, 2
+      IPC(I) = ch_blank
+      IPC(I+1) = ch_blank
+    end do
+
+    ! Initialize VT array
+    do J = JMIN, JMAX
+      VT(J,1) = C1(2)
+    end do
+
+    ! Main classification loop
+    do K = JMIN, JMAX
+      J = JMAX - K + 1
+      do I = IUP, IDOWN
+        VT(J,2) = VT(J,1)
+        VT(J,1) = C1(I) - (CXL(I)*P(J,I-1) + CXC(I)*P(J,I) + CXR(I)*P(J,I+1))
+        
+        ! Flow type classification using original logic
+        if (VT(J,1) > 0.0) then
+          if (VT(J,2) < 0.0) then
+            ! Shock point
+            IPC(I) = ch_shock
+          else
+            ! Elliptic point (subsonic)
+            IPC(I) = ch_ell
+          end if
+        else
+          if (VT(J,2) < 0.0) then
+            ! Hyperbolic point (supersonic)
+            IPC(I) = ch_hyp
+          else
+            ! Parabolic point (sonic)
+            IPC(I) = ch_par
+          end if
+        end if
+      end do
+      
+      ! Write line
+      write(UNIT_OUTPUT, '(10X,I3,5X,100A1)') J, (IPC(I), I=IUP, IDOWN)
+    end do
+    
+  end subroutine PRTMC
+
+  ! FIXPLT - Sets up arrays for CPPLOT subroutine
+  ! UNUSED: Replaced by OUTPUT_CP_MACH_XLINE in io_module.f90
+  subroutine FIXPLT()
+    use common_data, only: IMIN, IMAX, CPFACT, CPSTAR, CPU, CPL, X
+    use common_data, only: NMP_plus1
+    implicit none
+    
+    ! Local variables matching original
+    real :: YMX, YMN, QCP, QC1, QC2
+    integer :: K, I, IMP
+    real :: CPUP(NMP_plus1), CPLO(NMP_plus1), CPS(NMP_plus1), XP(NMP_plus1)
+    
+    YMX = 5.0 * CPFACT
+    YMN = -5.0 * CPFACT
+    K = 0
+    
+    do I = IMIN, IMAX
+      K = K + 1
+      QCP = -CPU(I)
+      QCP = max(QCP, YMN)
+      QCP = min(QCP, YMX)
+      CPUP(K) = QCP
+      
+      QC1 = -CPL(I)
+      QC1 = max(QC1, YMN)
+      QC1 = min(QC1, YMX)
+      CPLO(K) = QC1
+      
+      QC2 = -CPSTAR
+      QC2 = max(QC2, YMN)
+      QC2 = min(QC2, YMX)
+      CPS(K) = QC2
+      
+      XP(K) = X(I)
+    end do
+    
+    IMP = K + 1
+    CPUP(IMP) = YMX
+    CPLO(IMP) = YMN
+    CPS(IMP) = 0.0
+    XP(IMP) = X(IMAX) + 0.001
+    
+    call CPPLOT(XP, CPUP, CPLO, CPS, IMP)
+    
+  end subroutine FIXPLT
+
+  ! CPPLOT - Produces a printer plot of critical pressure vs X
+  ! UNUSED: Replaced by OUTPUT_CP_MACH_XLINE in io_module.f90
+  ! SUBROUTINE CPPLOT PRODUCES A PRINTER PLOT OF CRITICAL PRESSURE VS X
+  ! CALLED BY - FIXPLT.
+  subroutine CPPLOT(X_ARR, Y_ARR, Z_ARR, W_ARR, NP)
+    use common_data, only: AMESH, UNIT_OUTPUT
+    use common_data, only: NMP_plus1
+    implicit none
+    
+    ! Arguments
+    integer, intent(in) :: NP
+    real, intent(in) :: X_ARR(NMP_plus1), Y_ARR(NMP_plus1), Z_ARR(NMP_plus1), W_ARR(NMP_plus1)
+    
+    ! Local variables exactly matching original
+    integer :: M(120), ISYM(8)
+    integer :: IC(3)
+    real :: A(3)
+    integer :: NC, NR, NPL, NPR, NL5
+    real :: HL, HR, VB, VT_CPPLOT, VDEL, HDEL, HDELM, VL, VH
+    integer :: IROW, I, J, K
+    
+    ! Data initialization matching original exactly
+    IC(1) = 1
+    IC(2) = 1024
+    IC(3) = 1048576
+    
+    ISYM(1) = 32  ! ' '
+    ISYM(2) = 85  ! 'U'
+    ISYM(3) = 76  ! 'L'
+    ISYM(4) = 66  ! 'B'
+    ISYM(5) = 45  ! '-'
+    ISYM(6) = 85  ! 'U'
+    ISYM(7) = 76  ! 'L'  
+    ISYM(8) = 66  ! 'B'
+    
+    ! NC is the number of columns, NR is the number of rows
+    NC = 120
+    NR = 50
+    
+    ! Initialize ranges exactly like original
+    if (AMESH) then
+      NPL = 2
+      NPR = NP - 2
+      NL5 = 3
+    else
+      NPL = 1
+      NPR = NP - 1
+      NL5 = 2
+    end if
+    
+    HL = X_ARR(NPL)
+    HR = X_ARR(NPL)
+    VB = min(Y_ARR(1), Z_ARR(1), W_ARR(1))
+    VT_CPPLOT = max(Y_ARR(1), Z_ARR(1), W_ARR(1))
+    
+    ! Determine ranges exactly like original
+    do I = NL5, NPR
+      HL = min(HL, X_ARR(I))
+      HR = max(HR, X_ARR(I))
+      VB = min(VB, Y_ARR(I), Z_ARR(I), W_ARR(I))
+      VT_CPPLOT = max(VT_CPPLOT, Y_ARR(I), Z_ARR(I), W_ARR(I))
+    end do
+    
+    ! Skip to new page and write plot heading exactly like original
+    write(UNIT_OUTPUT, '(A1, 34X, A50, //, 9X, A17, 5X, A17, 5X, A27, 5X, A18)') &
+      '1', &
+      'PRINTER PLOT OF CP ON BODY AND DIVIDING STREAMLINE', &
+      'U  FOR CP(UPPER)', &
+      'L  FOR CP(LOWER)', &
+      'B  FOR CP(UPPER)=CP(LOWER)', &
+      '---  FOR CP SONIC'
+    
+    VDEL = (VT_CPPLOT - VB) / real(NR)
+    HDEL = (HR - HL) / real(NC)
+    HDELM = 1.0 / HDEL
+    VL = VT_CPPLOT
+    
+    ! Main plotting loop exactly like original
+    do IROW = 1, NR
+      VH = VL
+      VL = real(NR - IROW) * VDEL + VB
+      
+      ! Initialize M array
+      do I = 1, NC
+        M(I) = 0
+      end do
+      
+      ! Process each data point exactly like original
+      do I = NPL, NPR
+        J = max(1, min(NC, 1 + int((X_ARR(I) - HL) * HDELM)))
+        A(1) = Y_ARR(I)
+        A(2) = Z_ARR(I)
+        A(3) = W_ARR(I)
+        
+        do K = 1, 3
+          if (A(K) > VH) cycle
+          if (A(K) > VL .or. (A(K) <= VB .and. IROW == NR)) then
+            M(J) = M(J) + IC(K)
+          end if
+        end do
+      end do
+      
+      ! Convert to symbols exactly like original
+      do I = 1, NC
+        J = 1
+        if (M(I) >= IC(3)) then
+          J = J + 4
+          M(I) = mod(M(I), IC(3))
+        end if
+        if (M(I) >= IC(2)) then
+          J = J + 2
+          M(I) = mod(M(I), IC(2))
+        end if
+        if (M(I) > 0) then
+          J = J + 1
+        end if
+        M(I) = ISYM(J)
+      end do
+      
+      ! Write line exactly like original
+      write(UNIT_OUTPUT, '(1X, 120A1)') (char(M(I)), I=1, NC)
+    end do
+    
+  end subroutine CPPLOT
+
+  ! Prints coordinates where sonic velocity is computed
+  ! Linear interpolation between mesh points is used
+  ! Called by - PRINT.
+  ! UNUSED: Replaced by OUTPUT_CP_MACH_XLINE in io_module.f90
+  subroutine M1LINE()
+    use common_data, only: X, Y, IMIN, IMAX, JMIN, JMAX, JLOW
+    use common_data, only: AK, SONVEL, YFACT, BCTYPE
+    use common_data, only: UNIT_OUTPUT, N_MESH_POINTS
+    use math_module, only: PX
+    implicit none
+    
+    real :: XSLPRT(2*N_MESH_POINTS), YSLPRT(2*N_MESH_POINTS)
+    real :: XSONIC(10)
+    real :: YPR, PX1, PX2, RATIO
+    real :: XMIN, XMAX, XINCR, YMIN, YMAX, YINCR
+    real :: YM, YX
+    integer :: NPTS, J, M, I, L, N
+    
+    NPTS = 0  ! Number of sonic points
+    
+    do J = JMAX, JMIN, -1
+
+      ! J is the index of the J-line (constant Y) in the mesh
+      ! M is the number of sonic points
+      ! I is the index of the current point in the X direction
+      ! N is the index of the current point in the X direction
+
+      YPR = YFACT * Y(J)
+      PX2 = PX(IMIN, J)
+      M = 0
+      if (J == JLOW .and. NPTS /= 0) then
+        write(UNIT_OUTPUT, '(2X,"BODY LOCATION")')
+      end if
+      
+      do I = IMIN + 1, IMAX
+
+        PX1 = PX2
+        PX2 = PX(I, J)
+        
+        if (PX1 > SONVEL .and. PX2 > SONVEL) cycle
+        if (PX1 < SONVEL .and. PX2 < SONVEL) cycle
+        if (NPTS == 0) write(UNIT_OUTPUT, &
+          '("1SONIC LINE COORDINATES", /, 6X, "Y", 10X, "XSONIC", /, /)')
+        
+        M = M + 1
+        RATIO = (SONVEL - PX1) / (PX2 - PX1)
+        XSONIC(M) = X(I-1) + (X(I) - X(I-1)) * RATIO
+        NPTS = NPTS + 1
+        XSLPRT(NPTS) = XSONIC(M)
+        YSLPRT(NPTS) = YPR
+        if (NPTS >= 2*N_MESH_POINTS) then
+          write(UNIT_OUTPUT, '("0***** CAUTION *****",&
+           &" NUMBER OF SONIC POINTS EXCEEDED 2*N_MESH_POINTS",&
+           &" ARRAY DIMENSION EXCEEDED",&
+           &" EXECUTION OF SUBROUTINE M1LINE TERMINATED")')
+          return
+        end if
+      end do
+      
+      if (M == 0) cycle
+      write(UNIT_OUTPUT, '(11F10.5)') YPR, (XSONIC(L), L=1, M)
+    end do
+    
+    ! Process results if any sonic points were found
+    if (NPTS == 0) return
+    
+    YM = Y(JMIN)
+    YX = Y(JMAX)
+    do N = 1, NPTS
+      if (YSLPRT(N) /= YM .and. YSLPRT(N) /= YX) cycle
+
+        if (AK > 0.0) write(UNIT_OUTPUT, '("0***** CAUTION *****", &
+          &" SONIC LINE HAS REACHED A BOUNDARY", &
+          &" THIS VIOLATES ASSUMPTIONS USED TO DERIVE BOUNDARY CONDITIONS", &
+          &" SOLUTION IS PROBABLY INVALID")')
+
+      if (AK < 0.0 .and. BCTYPE == 1) write(UNIT_OUTPUT, '("0***** CAUTION *****",&
+           &" SONIC LINE HAS REACHED A BOUNDARY",&
+           &" THIS VIOLATES ASSUMPTIONS USED TO DERIVE BOUNDARY CONDITIONS",&
+           &" SOLUTION IS PROBABLY INVALID")')
+    end do
+    
+    XMIN = -0.75
+    XMAX = 1.75
+    XINCR = 0.25
+    YMIN = -1.0
+    YMAX = 1.5
+    YINCR = 0.5
+    
+    call PLTSON(XSLPRT, YSLPRT, XMIN, XMAX, XINCR, YMIN, YMAX, YINCR, NPTS)
+
+  end subroutine M1LINE
+  
+  ! PLTSON - Sonic line printer plot routine 
+  ! This is a modified version of PRNPLT and XMAX, XINCR, YMAX, YINCR must be supplied.
+  ! XMIN, and YMIN must also be supplied.
+  ! Printer plot routine M. S. ITZKOWITZ MAY,1967
+  ! Plots the NPTS points given by X(I),Y(I) on a 51 X NMP_plus1 grid using a total of 56 lines on
+  ! the printer. If either incremental step size is zero, the program exits.
+  ! Neither of the input arrays are destroyed.
+  ! Called by - M1LINE.
+  ! UNUSED: Replaced by OUTPUT_CP_MACH_XLINE in io_module.f90
+  subroutine PLTSON(X_ARG, Y_ARG, XAXMIN, XMAX_ARG, XINCR_ARG, YAXMIN, YMAX_ARG, YINCR_ARG, NPTS_ARG)
+    use common_data, only: UNIT_OUTPUT
+    implicit none
+    
+    ! Arguments
+    integer, intent(in) :: NPTS_ARG
+    real, intent(in) :: X_ARG(NPTS_ARG), Y_ARG(NPTS_ARG)
+    real, intent(in) :: XAXMIN, XMAX_ARG, XINCR_ARG, YAXMIN, YMAX_ARG, YINCR_ARG
+    
+    ! Local variables
+    integer, dimension(105) :: IGRID
+    real, dimension(11) :: XAXIS
+    character(len=1), parameter :: BLANK = ' ', DOT = '.', STAR = '*', DASH = '-'
+    integer, parameter :: IBS(9) = [ichar('B'),ichar('O'),ichar('D'),ichar('Y'),ichar(' '),&
+                                    ichar('S'),ichar('L'),ichar('I'),ichar('T')]
+    real :: YRNGE, XRNGE, YVAL, XVAL, OXV, OYV, FIZERO, FJZERO, FIZER5, FJZER5
+    integer :: JSLT, IZERO, JZERO, NOPW, JS, I, J, K, L, M, ITEST
+    real :: FM, FI, YAXIS
+    
+    write(UNIT_OUTPUT, '(''1'')')
+    write(UNIT_OUTPUT, '(35X,15HSONIC LINE PLOT,10X,6HY VS X,10X,20H *  FOR SONIC POINTS//)')
+
+    if (XINCR_ARG == 0.0 .or. YINCR_ARG == 0.0) then
+      write(UNIT_OUTPUT, '(46H1SCALING ERROR IN PRNPLT, EXECUTION TERMINATED )')
+      stop
+    end if
+    
+    YRNGE = YMAX_ARG - YAXMIN
+    XRNGE = XMAX_ARG - XAXMIN
+    YVAL = YRNGE * 0.02
+    XVAL = XRNGE * 0.01
+    JSLT = int(51.0 * (YMAX_ARG / YRNGE)) + 1
+    OXV = 1.0 / XVAL
+    OYV = 1.0 / YVAL
+    IZERO = int(YMAX_ARG * OYV + 1.5)
+    JZERO = int(103.5 - XMAX_ARG * OXV)
+    if (JZERO > 103 .or. JZERO < 4) JZERO = 2
+    FIZERO = real(IZERO)
+    FJZERO = real(JZERO)
+    IGRID(1) = ichar(BLANK)
+    IGRID(2) = ichar(DOT)
+    IGRID(104) = ichar(DOT)
+    IGRID(105) = ichar(BLANK)
+    FIZER5 = FIZERO + 0.5
+    FJZER5 = FJZERO + 0.5
+    
+    ! NOPW is the number of print wheels used to span the body length.
+    NOPW = int(OXV)
+    ! JS - the number of prt wheel positions to be filled at each end of the word "BODY SLIT"
+    JS = 0
+    if (NOPW > 9) JS = (NOPW - 9) / 2
+
+    write(UNIT_OUTPUT, '(16X,11(1H+,9X))')
+    write(UNIT_OUTPUT, '(15X,103(1H.))')
+    
+    ! Loop to set up one line each time thru.
+    do I = 1, 51
+      ! Blank the line to be printed.
+      do J = 3, 103
+        IGRID(J) = ichar(BLANK)
+      end do
+
+      ! Search array for points on this line.
+      do K = 1, NPTS_ARG
+        ITEST = int(FIZER5 - Y_ARG(K) * OYV)
+        if (ITEST /= I) then
+          if (JSLT == I) then
+            ! Write "BODY SLIT" if this is the J0 line.
+            J = JZERO + 1
+            if (JS /= 0) then
+              do L = 1, JS
+                if (IGRID(J) /= ichar(STAR)) IGRID(J) = ichar(DASH)
+                J = J + 1
+              end do
+            end if
+            
+            do L = 1, 9
+              if (IGRID(J) /= ichar(STAR)) IGRID(J) = IBS(L)
+              J = J + 1
+            end do
+            
+            if (JS /= 0) then
+              do L = 1, JS
+                if (IGRID(J) /= ichar(STAR)) IGRID(J) = ichar(DASH)
+                J = J + 1
+              end do
+            end if
+          end if
+          cycle
+        end if
+        
+        J = int(FJZER5 + X_ARG(K) * OXV)
+        if (J > 103) J = 103
+        if (J < 3) J = 3
+        IGRID(J) = ichar(STAR)
+        
+        if (JSLT == I) then
+          ! Write "BODY SLIT" if this is the J0 line.
+          J = JZERO + 1
+          if (JS /= 0) then
+            do L = 1, JS
+              if (IGRID(J) /= ichar(STAR)) IGRID(J) = ichar(DASH)
+              J = J + 1
+            end do
+          end if
+          
+          do L = 1, 9
+            if (IGRID(J) /= ichar(STAR)) IGRID(J) = IBS(L)
+            J = J + 1
+          end do
+          
+          if (JS /= 0) then
+            do L = 1, JS
+              if (IGRID(J) /= ichar(STAR)) IGRID(J) = ichar(DASH)
+              J = J + 1
+            end do
+          end if
+        end if
+      end do
+      
+      if (mod(I, 10) == 1) then
+        FI = real(I - 1)
+        YAXIS = YMAX_ARG - FI * YINCR_ARG * 0.1
+        if (abs(YAXIS) < YAXMIN) YAXIS = 0.0
+        write(UNIT_OUTPUT, '(1X,F10.1,2X,1H+,105A1,1H+)') YAXIS, (char(IGRID(J)), J=1, 105)
+      else
+        write(UNIT_OUTPUT, '(14X,105A1)') (char(IGRID(J)), J=1, 105)
+      end if
+    end do
+    
+    write(UNIT_OUTPUT, '(15X,103(1H.))')
+    write(UNIT_OUTPUT, '(16X,11(1H+,9X))')
+    
+    do M = 1, 11
+      FM = real(11 - M)
+      XAXIS(M) = XMAX_ARG - XINCR_ARG * FM
+      if (XAXIS(M) < XAXMIN) XAXIS(M) = XAXMIN
+    end do
+    
+    write(UNIT_OUTPUT, '(7X,11(F10.2),2H (,I4,5H PTS) )') XAXIS, NPTS_ARG
+    write(UNIT_OUTPUT, '(''1'')')
+    
+  end subroutine PLTSON
+
+  ! Print Cp, flow angle (theta), and Mach number on selected j-lines
+  ! Prints pressure coefficient, flow angle and Mach number in flow field.
+  ! Number of J lines printed is determined from the input value of PRTFLO.
+  ! PRTFLO = 1, NONE.
+  ! PRTFLO = 2, ALL J LINES EXCEPT J0.
+  ! PRTFLO = 3, THREE J LINES AROUND JERROR.
+  ! UNUSED: Never called in current implementation
+  subroutine PRTFLD()
+    use common_data, only: X, Y, JMIN, JMAX, JUP, JLOW, JERROR, CPFACT, VFACT, CPSTAR
+    use common_data, only: JLIN, IMIN, IMAX, PHYS, PRTFLO, UNIT_OUTPUT
+    use math_module, only: PX, PY, EMACH1
+    implicit none
+    integer :: JL, MPR, MPREND, M, MQ, I, J, K, IS, IE, KT
+    real :: U
+    real, dimension(3) :: YPRINT, CPPR, PYPR, EM1
+    character(len=4), dimension(10), parameter :: PRT = (/ &
+      'MACH', ' NUM', 'BERS', '    ', '    ', &
+      'SIMI', 'LARI', 'TY P', 'ARAM', 'ETER' /)
+    character(len=2), dimension(2), parameter :: TMAC = (/ 'M1', 'K1' /)
+
+    ! Skip if PRTFLO = 1
+    if (PRTFLO == 1) return
+
+    ! Determine which lines to print
+    if (PRTFLO == 2) then
+      ! Print all J lines except J0
+      JL = JMAX - JMIN + 1
+      K = 1
+      do J = JMIN, JMAX
+        JLIN(K) = J
+        K = K + 1
+      end do
+      
+    else
+      ! PRTFLO = 3: Locate three lines around JERROR
+      JL = 3
+      if (JERROR == JMIN .or. JERROR == JUP) then
+        JLIN(1) = JERROR
+        JLIN(2) = JERROR + 1
+        JLIN(3) = JERROR + 2
+      else if (JERROR == JLOW .or. JERROR == JMAX) then
+        JLIN(1) = JERROR - 2
+        JLIN(2) = JERROR - 1
+        JLIN(3) = JERROR
+      else
+        JLIN(1) = JERROR - 1
+        JLIN(2) = JERROR
+        JLIN(3) = JERROR + 1
+      end if
+    end if
+
+    ! Print flow field in 3 J lines per page
+    do MPR = 1, JL, 3
+      MPREND = min(MPR+2, JL)
+      do M = MPR, MPREND
+        MQ = M - MPR + 1
+        J = JLIN(M)
+        YPRINT(MQ) = Y(J) * VFACT
+      end do
+
+      ! Write page header
+      IS = 1
+      if (PHYS) IS = 6
+      IE = IS + 4
+      
+      write(UNIT_OUTPUT,'(A,5A4,A)') &
+        'PRESSURE COEFFICIENTS, FLOW ANGLES, AND LOCAL ', &
+        (PRT(I), I=IS,IE), ' ON Y=CONSTANT LINES'
+      write(UNIT_OUTPUT,'(A,F12.7)') ' CPSTAR =', CPSTAR
+      write(UNIT_OUTPUT,*)
+      write(UNIT_OUTPUT,'(13X,3(15X,A,I4,15X))') &
+        ('J=', JLIN(M), M=MPR,MPREND)
+      write(UNIT_OUTPUT,'(13X,3(12X,A,F10.6,12X))') &
+        ('Y=', YPRINT(M), M=1,MPREND-MPR+1)
+      
+      KT = 2
+      if (PHYS) KT = 1
+      write(UNIT_OUTPUT,'(A,8X,A,5X,3(6X,A,8X,A,7X,A,6X))') &
+        '  I', 'X', ('CP', 'THETA', TMAC(KT), M=1,MPREND-MPR+1)
+      write(UNIT_OUTPUT,*)
+      
+      do I = IMIN, IMAX
+        do M = MPR, MPREND
+          MQ = M - MPR + 1
+          J = JLIN(M)
+          U = PX(I, J)
+          CPPR(MQ) = -2.0 * CPFACT * U
+          PYPR(MQ) = VFACT * PY(I, J)
+          EM1(MQ) = EMACH1(U)
+        end do
+        write(UNIT_OUTPUT,'(1X,I3,2X,F10.6,1X,3(2X,3F11.6,1X))') &
+              I, X(I), (CPPR(M), PYPR(M), EM1(M), M=1,MPREND-MPR+1)
+      end do
+    end do
+    
+    write(UNIT_OUTPUT,'(A,I0,A)') 'Field data written for ', JL, ' J-lines'
+  end subroutine PRTFLD
 
 
 end module no_use_subroutines

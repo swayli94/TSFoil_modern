@@ -108,24 +108,24 @@ tsfoil_modern/
    |---------------------|-------------|--------|
    | `READIN` | Input parameter reading | ✅ |
    | `SCALE` | Variable scaling | ✅ |
-   | `ECHINP` | Input echoing | ✅ |
+   | `ECHINP` | Input echoing | UNUSED |
    | `PRINT` | Main output driver | ✅ |
-   | `PRINT1` | Body Cp and Mach output | ✅ |
-   | `PRTFLD` | Field output | ✅ |
-   | `PRTMC` | Flow type mapping | ✅ |
+   | `PRINT1` | Body Cp and Mach output | SIMPLIFIED |
+   | `PRTFLD` | Field output | UNUSED |
+   | `PRTMC` | Flow type mapping | Replaced by `OUTPUT_FIELD` |
    | `PRTSK` | Shock wave output | ✅ |
-   | `PRTWAL` | Wall condition output | ✅ |
+   | `PRTWAL` | Wind tunnel wall condition output | ✅ |
    | `INPERR(I)` | Error message output | ✅ |
-   | `DLAOUT` | Output Cp data | ✅ |
-   | `LOADP` | Read restart file | ✅ |
-   | `CPPLOT` | Cp plot preparation | ✅ |
-   | `FIXPLT` | Plot array construction | ✅ |
-   | `SAVEP` | Solution storage | ✅ |
+   | `DLAOUT` | Output Cp data | UNUSED |
+   | `LOADP` | Read restart file | UNUSED |
+   | `CPPLOT` | Cp plot preparation | Replaced by `OUTPUT_CP_MACH_XLINE` |
+   | `FIXPLT` | Plot array construction | Replaced by `OUTPUT_CP_MACH_XLINE` |
+   | `SAVEP` | Solution storage | UNUSED |
    | `CDCOLE` | Drag coefficient assembly | ✅ |
-   | `M1LINE` | Sonic line detection | ✅ |
-   | `PLTSON` | Sonic line printer | ✅ |
+   | `M1LINE` | Sonic line detection | UNUSED |
+   | `PLTSON` | Sonic line printer | UNUSED |
    | `GUESSP` | Solution initialization | UNUSED |
-   | `MACHMP` | Print map of Mach number | Rewritten to `OUTPUT_CP_MACH_FIELD` |
+   | `MACHMP` | Print map of Mach number | Replaced by `OUTPUT_FIELD` |
 
 ### Compilation Dependencies
 

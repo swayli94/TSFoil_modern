@@ -27,12 +27,7 @@ program tsfoil_main
   ! Call READIN to read one case - it handles termination internally with STOP
   write(*,'(A)') 'Reading input data...'
   call READIN()
-  
-  ! Continue with complete TSFOIL solution workflow
-  write(*,'(A)') 'Starting TSFOIL solution sequence...'
-  write(UNIT_OUTPUT,'(A)') 'TSFOIL Solution Sequence'
-  write(UNIT_OUTPUT,'(A)') '========================'
-  
+    
   ! SCALE: Rescale all physical variables to transonic similarity form
   write(*,'(A)') 'Scaling variables to similarity form...'
   call SCALE()
@@ -60,21 +55,13 @@ program tsfoil_main
   ! Print final results
   write(*,'(A)') 'Printing final results...'
   call PRINT()
-  
-  ! Store solution for potential next case
-  call SAVEP()
-  
+
   write(*,'(A)') 'Case completed successfully'
   write(UNIT_OUTPUT,'(A)') 'Case completed successfully'
-  write(UNIT_OUTPUT,*)
-  
+
   ! Close all files and end program
   call cleanup_spline()
   call close_output_files()
-  close(UNIT_INPUT)
-  close(UNIT_OUTPUT)
-  
-  write(*,'(A)') 'Program completed normally'
 
 end program tsfoil_main
 
