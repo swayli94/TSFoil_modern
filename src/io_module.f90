@@ -30,10 +30,8 @@ contains
     
     open(unit=UNIT_OUTPUT, file='tsfoil2.out', status='replace', action='write')   ! Unit 15
     open(unit=UNIT_SUMMARY, file='smry.out', status='replace', action='write')     ! Unit 16
-    open(unit=UNIT_CPXS, file='cpxs.out', status='replace', action='write')        ! Unit 17
     open(unit=UNIT_MMAP, file='mmap.out', status='replace', action='write')        ! Unit 18
     open(unit=UNIT_CNVG, file='cnvg.out', status='replace', action='write')        ! Unit 19
-    open(unit=UNIT_MESH, file='mesh.out', status='replace', action='write')        ! Unit 20
     open(unit=UNIT_CPMP, file='cpmp.out', status='replace', action='write')        ! Unit 21
         
   end subroutine open_output_files
@@ -46,10 +44,8 @@ contains
 
     close(UNIT_OUTPUT)   ! tsfoil2.out
     close(UNIT_SUMMARY)  ! smry.out
-    close(UNIT_CPXS)     ! cpxs.out
     close(UNIT_MMAP)     ! mmap.out
     close(UNIT_CNVG)     ! cnvg.out
-    close(UNIT_MESH)     ! mesh.out
     close(UNIT_CPMP)     ! cpmp.out
 
   end subroutine close_output_files
@@ -561,7 +557,6 @@ contains
     end select
     
     write(UNIT_OUTPUT, '(1H0,9X,4HCL =,F10.6/10X,4HCM =,F10.6/9X,5HCP* =,F10.6)') CL_val, CM, CPSTAR
-    write(UNIT_CPXS, '(1H0,9X,4HCL =,F10.6/10X,4HCM =,F10.6/9X,5HCP* =,F10.6)') CL_val, CM, CPSTAR  
     write(UNIT_SUMMARY, '(1H0,9X,4HCL =,F16.12/10X,4HCM =,F16.12/9X,5HCP* =,F16.12)') CL_val, CM, CPSTAR
     
     ! Check for detached shock - exactly like original with GO TO 70 logic
@@ -581,12 +576,6 @@ contains
     if (PHYS) KT_P1 = 1
     write(UNIT_OUTPUT, '(3X, A, 8X, A, 10X, A, 10X, A2, 14X, A, 10X, A2, /)') 'I', 'X', 'CP', TMAC_P1(KT_P1), 'CP', TMAC_P1(KT_P1)
       IPLOT_P1 = 0
-    
-    if (IREF == 0) then
-      write(UNIT_CPXS, '(2x,A,3x,A,f7.3,3x,A,f7.3,/,4x,A,5x,A,8x,A,5x,A,6x,A,4x,A)') &
-            'TSFOIL2', 'Mach = ', EMACH, 'CL = ', CL_val, &
-            'i', 'X/C', 'Cp-up', 'M-up', 'Cp-low', 'M-low'
-    end if
       
     ! Main output loop with exact original logic
     do I_P1 = IMIN, IMAX
@@ -619,9 +608,6 @@ contains
       ! Print trailing edge marker exactly like original
       if (I_P1 == ITE) write(UNIT_OUTPUT, '(25X, A, 44X, A)') 'AIRFOIL TRAILING EDGE', 'AIRFOIL TRAILING EDGE'
       
-      ! Save data for plotting exactly like original
-      write(UNIT_CPXS, '(2x,i3,2x,f7.4,2x,f10.5,2x,f7.4,2x,f10.5,2x,f7.4)') &
-            IPLOT_P1, X(I_P1), CPU(I_P1), EM1U(I_P1), CPL(I_P1), EM1L(I_P1)
     end do
         ! Mach number warning exactly like original
     if (IEM == 1) then
@@ -642,11 +628,68 @@ contains
     write(UNIT_OUTPUT, '(1H0//9X,7HX(I) I=,I3,3H TO,I3/(6X,6F12.6))') IMIN, IMAX, (X(I_P1), I_P1=IMIN, IMAX)
     write(UNIT_OUTPUT, '(1H0//9X,7HY(J) J=,I3,3H TO,I3/(6X,6F12.6))') JMIN, JMAX, (YM(I_P1), I_P1=JMIN, JMAX)
     
-    ! Write mesh data exactly like original 
-    write(UNIT_MESH, '(1H0//9X,7HX(I) I=,I3,3H TO,I3/(6X,6F12.6))') IMIN, IMAX, (X(I_P1), I_P1=IMIN, IMAX)
-    write(UNIT_MESH, '(1H0//9X,7HY(J) J=,I3,3H TO,I3/(6X,6F12.6))') JMIN, JMAX, (YM(I_P1), I_P1=JMIN, JMAX)
+    ! Output airfoil surface data
+    call OUTPUT_CP_MACH_XLINE(CL_val, CM, EM1L, EM1U)
     
+    ! Output mesh data to file in Tecplot format
+    call OUTPUT_MESH()
+
   end subroutine PRINT1
+
+  ! Output mesh data to file in Tecplot format
+  subroutine OUTPUT_MESH()
+    use common_data, only: X, Y, JMIN, JMAX, UNIT_MESH, IMIN, IMAX
+    implicit none
+    integer :: I_P1, J_P1
+
+    open(unit=UNIT_MESH, file='mesh.dat', status='replace', action='write')
+
+    write(UNIT_MESH, '(A)') 'VARIABLES = "X", "Y"'
+    write(UNIT_MESH, '(A,I5,A,I5,A)') 'ZONE I= ', IMAX-IMIN+1, ' J= ', JMAX-JMIN+1, ' F= POINT'
+    do J_P1 = JMIN, JMAX
+      do I_P1 = IMIN, IMAX
+        write(UNIT_MESH, '(2F12.6)') X(I_P1), Y(J_P1)
+      end do
+    end do
+
+    close(UNIT_MESH)
+
+    write(*, '(A)') 'Output to mesh.dat: Mesh data'
+    
+  end subroutine OUTPUT_MESH
+
+  ! Output Cp, Mach distribution on a x-line (Y=0) in Tecplot format
+  subroutine OUTPUT_CP_MACH_XLINE(CL_val, CM, EM1U, EM1L)
+    use common_data, only: IMIN, IMAX, UNIT_CPXS
+    use common_data, only: X, EMACH, CPSTAR
+    use common_data, only: CPU, CPL
+    implicit none
+    real, intent(in) :: CL_val, CM
+    real, intent(in) :: EM1U(:), EM1L(:)
+
+    integer :: I_P1
+
+    open(unit=UNIT_CPXS, file='cpxs.dat', status='replace', action='write')
+
+    ! Write coefficients
+    write(UNIT_CPXS, '(A, F10.6)') '# Mach = ', EMACH
+    write(UNIT_CPXS, '(A, F10.6)') '# CL = ', CL_val
+    write(UNIT_CPXS, '(A, F10.6)') '# CM = ', CM
+    write(UNIT_CPXS, '(A, F10.6)') '# Cp* = ', CPSTAR
+
+    write(UNIT_CPXS, '(A)') 'VARIABLES = "X", "Cp-up", "M-up", "Cp-low", "M-low"'
+
+    do I_P1 = IMIN, IMAX
+      write(UNIT_CPXS, '(2x,f10.5,2x,f10.5,2x,f10.5,2x,f10.5,2x,f10.5)') &
+            X(I_P1), CPU(I_P1), EM1U(I_P1), CPL(I_P1), EM1L(I_P1)
+    end do
+
+    close(UNIT_CPXS)
+
+    write(*, '(A)') 'Output to cpx.dat: Cp, Mach distribution on a x-line (Y=0)'
+    
+  end subroutine OUTPUT_CP_MACH_XLINE
+
 
   ! Print Cp, flow angle (theta), and Mach number on selected j-lines
   ! Prints pressure coefficient, flow angle and Mach number in flow field.

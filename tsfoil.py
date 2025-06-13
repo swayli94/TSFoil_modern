@@ -136,25 +136,70 @@ class Plotter(object):
     def plot_contour(self, row, mach=False, savepng=False, custom_filename=None):
         fig, ax  = self.gen_contour_fig(mach)
 
-        X, Y = np.meshgrid(row["mesh_x"], row["mesh_y"])
-        Z = row["mach_map"] if mach else row["cp_map"]
+        # Check if mesh data is available and valid
+        if len(row["mesh_x"]) == 0 or len(row["mesh_y"]) == 0:
+            ax.text(0.5, 0.5, "No mesh data available for contour plot", 
+                   horizontalalignment='center', verticalalignment='center',
+                   transform=ax.transAxes, fontsize=12)
+            ax.set_title('Contour Plot - No Data')
+            if savepng:
+                if custom_filename:
+                    filename = custom_filename
+                else:
+                    filename = self.gen_png_filename(row)
+                plt.savefig(filename, dpi=300, bbox_inches='tight')
+                plt.close()
+                return filename
+            return
 
-        increment = (Z.max() - Z.min())/NUM_LEVELS
-        ax.text(-0.4, -0.7, "Increment :{:1.3f}".format(increment), fontsize=8, color='black')
+        try:
+            X, Y = np.meshgrid(row["mesh_x"], row["mesh_y"])
+            Z = row["mach_map"] if mach else row["cp_map"]
 
-        foil=[(0, 1), (0, 0), 'black']
-        ax.plot(*foil, label=self.gen_vertical_label(row))
-        
-        cs = ax.contour(X, Y, Z, 
-                levels=np.linspace(Z.min(), Z.max(), NUM_LEVELS),
-                linewidths=0.5,
-                cmap=self.gen_cmap())
+            # Check if Z data is available and valid
+            if Z.size == 0:
+                raise ValueError("Contour data is empty")
+            
+            # Check dimensions compatibility
+            if Z.shape != X.shape:
+                print(f"Warning: Dimension mismatch - X,Y shape: {X.shape}, Z shape: {Z.shape}")
+                # Try to fix by transposing Z if needed
+                if Z.shape == X.shape[::-1]:
+                    Z = Z.T
+                    print("   Fixed by transposing Z")
+                else:
+                    raise ValueError(f"Cannot reconcile shapes: X,Y {X.shape} vs Z {Z.shape}")
 
-        sm = plt.cm.ScalarMappable(cmap = cs.cmap)
-        sm.set_array(Z)  # Set the array for the ScalarMappable
-        fig.colorbar(sm, ax=ax, ticks=np.arange(Z.min(), Z.max(), CBAR_TIKCS))
+            # Check for valid data range
+            if np.isnan(Z).any() or np.isinf(Z).any():
+                raise ValueError("Contour data contains NaN or infinite values")
+            
+            if Z.max() == Z.min():
+                raise ValueError("Contour data has no variation (constant values)")
 
-        self.legend_magic(ax)
+            increment = (Z.max() - Z.min())/NUM_LEVELS
+            ax.text(-0.4, -0.7, "Increment :{:1.3f}".format(increment), fontsize=8, color='black')
+
+            foil=[(0, 1), (0, 0), 'black']
+            ax.plot(*foil, label=self.gen_vertical_label(row))
+            
+            cs = ax.contour(X, Y, Z, 
+                    levels=np.linspace(Z.min(), Z.max(), NUM_LEVELS),
+                    linewidths=0.5,
+                    cmap=self.gen_cmap())
+
+            sm = plt.cm.ScalarMappable(cmap = cs.cmap)
+            sm.set_array(Z)  # Set the array for the ScalarMappable
+            fig.colorbar(sm, ax=ax, ticks=np.arange(Z.min(), Z.max(), CBAR_TIKCS))
+
+            self.legend_magic(ax)
+
+        except Exception as e:
+            print(f"Error in contour plotting: {e}")
+            ax.text(0.5, 0.5, f"Error in contour plotting:\n{str(e)}", 
+                   horizontalalignment='center', verticalalignment='center',
+                   transform=ax.transAxes, fontsize=10)
+            ax.set_title('Contour Plot - Error')
 
         if savepng:
             if custom_filename:
@@ -189,6 +234,18 @@ class Plotter(object):
         row = self.buffer.iloc[-1]
         fig, ax = plt.subplots(figsize=(8, 6))
 
+        # Check if mesh data is available
+        if len(row["mesh_x"]) == 0 or len(row["mesh_y"]) == 0:
+            ax.text(0.5, 0.5, "No mesh data available", 
+                   horizontalalignment='center', verticalalignment='center',
+                   transform=ax.transAxes, fontsize=12)
+            ax.set_title('Grid Specification - No Data')
+            if save_to_folder:
+                filename = os.path.join(save_to_folder, "grid_layout.png")
+                plt.savefig(filename, dpi=300, bbox_inches='tight')
+                print(f"      Saved: {filename}")
+            return
+
         ax.text(-0.4, -0.7, "{} x {}".format(len(row["mesh_x"]), len(row["mesh_y"])), fontsize=8)
 
         X, Y = np.meshgrid(row["mesh_x"], row["mesh_y"])
@@ -208,6 +265,71 @@ class Plotter(object):
             filename = os.path.join(save_to_folder, "grid_layout.png")
             plt.savefig(filename, dpi=300, bbox_inches='tight')
             print(f"      Saved: {filename}")
+
+    def plot_mesh_tecplot(self, filename="mesh.dat", save_to_folder=None, show_every_nth=1):
+        """Plot the full mesh from Tecplot format file with all grid lines"""
+        try:
+            # Read the full mesh data
+            with open(filename, 'r') as f:
+                lines = f.readlines()
+            
+            # Parse header to get grid dimensions
+            zone_line = lines[1].strip()
+            parts = zone_line.split()
+            ni = int(parts[2])  # I= value  
+            nj = int(parts[4])  # J= value
+            
+            # Read all data points
+            data = []
+            for i in range(2, len(lines)):
+                line = lines[i].strip()
+                if line:
+                    x_val, y_val = map(float, line.split())
+                    data.append([x_val, y_val])
+            
+            data = np.array(data)
+            x_points = data[:, 0].reshape(nj, ni)
+            y_points = data[:, 1].reshape(nj, ni)
+            
+            # Create plot
+            fig, ax = plt.subplots(figsize=(12, 8))
+            
+            # Plot grid lines in both directions
+            # Plot every nth line to avoid overcrowding
+            for i in range(0, nj, show_every_nth):
+                ax.plot(x_points[i, :], y_points[i, :], 'b-', lw=0.3, alpha=0.7)
+            
+            for j in range(0, ni, show_every_nth):
+                ax.plot(x_points[:, j], y_points[:, j], 'b-', lw=0.3, alpha=0.7)
+            
+            # Highlight airfoil (assume it's around y=0, x=0 to 1)
+            airfoil_mask = (np.abs(y_points) < 0.01) & (x_points >= 0) & (x_points <= 1)
+            if np.any(airfoil_mask):
+                airfoil_x = x_points[airfoil_mask]
+                airfoil_y = y_points[airfoil_mask]
+                ax.plot(airfoil_x, airfoil_y, 'r-', lw=2, label='Airfoil')
+            
+            ax.set_title(f'Computational Grid ({ni} x {nj} points, showing every {show_every_nth})')
+            ax.set_xlabel('x/c')
+            ax.set_ylabel('y/c')
+            ax.set_aspect('equal')
+            ax.grid(True, alpha=0.3)
+            ax.legend()
+            
+            # Add info text
+            ax.text(0.02, 0.98, f"Grid: {ni} x {nj} = {ni*nj} points", 
+                   transform=ax.transAxes, fontsize=10, 
+                   verticalalignment='top', bbox=dict(boxstyle="round,pad=0.3", facecolor="wheat"))
+            
+            if save_to_folder:
+                filename_out = os.path.join(save_to_folder, "mesh.png")
+                plt.savefig(filename_out, dpi=300, bbox_inches='tight')
+                print(f"      Saved: {filename_out}")
+            
+        except FileNotFoundError:
+            print(f"Error: {filename} not found")
+        except Exception as e:
+            print(f"Error reading mesh file: {e}")
 
     def gplot(self, x, y, row=None, color='red', save_to_folder=None):
         fig, ax = plt.subplots(figsize=(8, 6))
@@ -328,20 +450,103 @@ class TSFoil(Plotter):
         df.columns = [c.strip().lower() for c in df.columns.str.replace('0',"")]
         return df
 
-    def extract_mesh(self, filename="mesh.out"):
-        x, y = open(filename).read().split("0\n\n")[1:]
-        x = np.genfromtxt(StringIO(x[self.LEN_HEADER:].replace("\n", "")))[:-1]
-        y = np.genfromtxt(StringIO(y[self.LEN_HEADER:].replace("\n", "")))[::-1][:-1]
-        return x,y
+    def extract_mesh_tecplot_compatible(self, filename="mesh.dat", contour_shape=None):
+        """Extract mesh data from Tecplot format file, adjusted to match contour data dimensions"""
+        if not os.path.exists(filename):
+            raise FileNotFoundError(f"Mesh file {filename} not found")
+        
+        with open(filename, 'r') as f:
+            lines = f.readlines()
+        
+        # Parse header to get grid dimensions
+        zone_line = lines[1].strip()  # ZONE I= {ni} J= {nj} F= POINT
+        parts = zone_line.split()
+        ni = int(parts[2])  # I= value
+        nj = int(parts[4])  # J= value
+        
+        # Read data points starting from line 2 (0-indexed)
+        data = []
+        for i in range(2, len(lines)):
+            line = lines[i].strip()
+            if line:  # Skip empty lines
+                x_val, y_val = map(float, line.split())
+                data.append([x_val, y_val])
+        
+        data = np.array(data)
+        x_points = data[:, 0]
+        y_points = data[:, 1]
+        
+        # Reshape data to 2D grid format (ni x nj)
+        x_2d = x_points.reshape(nj, ni)
+        y_2d = y_points.reshape(nj, ni)
+        
+        if contour_shape is not None:
+            # Adjust mesh to match contour data dimensions
+            target_nj, target_ni = contour_shape
+            print(f"   Adjusting mesh from ({ni}x{nj}) to match contour ({target_ni}x{target_nj})")
+            
+            # Extract coordinates to match contour dimensions
+            # Typically contour data is on cell centers, so we need (ni-1) x (nj-1)
+            if target_ni == ni - 1 and target_nj == nj - 1:
+                # Cell-centered data: take midpoints
+                x_unique = 0.5 * (x_2d[0, :-1] + x_2d[0, 1:])  # Midpoints in x-direction
+                y_unique = 0.5 * (y_2d[:-1, 0] + y_2d[1:, 0])  # Midpoints in y-direction
+                print("   Using cell-centered mesh coordinates")
+            elif target_ni == ni and target_nj == nj:
+                # Same dimensions - use node-centered data
+                x_unique = x_2d[0, :]
+                y_unique = y_2d[:, 0]
+                print("   Using node-centered mesh coordinates")
+            else:
+                # Try to interpolate or subsample to match
+                x_indices = np.linspace(0, ni-1, target_ni, dtype=int)
+                y_indices = np.linspace(0, nj-1, target_nj, dtype=int)
+                x_unique = x_2d[0, x_indices]
+                y_unique = y_2d[y_indices, 0]
+                print(f"   Interpolated mesh to match contour dimensions")
+        else:
+            # No contour data available, use original approach
+            x_unique = x_2d[0, :]
+            y_unique = y_2d[:, 0]
+            print("   No contour data for reference, using full mesh")
+        
+        # Reverse y coordinates to match the original mesh.out format orientation
+        # This ensures the flow field has the correct orientation (not upside down)
+        y_unique = y_unique[::-1]
+        print("   Reversed y coordinates to match original orientation")
+        
+        print(f"   Final mesh arrays: x({len(x_unique)}), y({len(y_unique)})")
+        
+        return x_unique, y_unique
 
-    def extract_cpxs(self, filename="cpxs.out"):
+    def extract_cpxs(self, filename="cpxs.dat"):
         return np.genfromtxt(filename, skip_header=5).T
 
     def extract_mmap(self, filename="mmap.out"):
-        return np.loadtxt(filename)
+        """Extract Mach contour data"""
+        if not os.path.exists(filename):
+            print(f"Warning: {filename} not found")
+            return np.array([])
+        try:
+            data = np.loadtxt(filename)
+            print(f"   Loaded mach map: shape {data.shape}")
+            return data
+        except Exception as e:
+            print(f"Warning: Error reading {filename}: {e}")
+            return np.array([])
 
     def extract_cpmp(self, filename="cpmp.out"):
-        return np.loadtxt(filename)
+        """Extract Cp contour data"""
+        if not os.path.exists(filename):
+            print(f"Warning: {filename} not found")
+            return np.array([])
+        try:
+            data = np.loadtxt(filename)
+            print(f"   Loaded cp map: shape {data.shape}")
+            return data
+        except Exception as e:
+            print(f"Warning: Error reading {filename}: {e}")
+            return np.array([])
 
     def extract_cnvg(self, filename="smry.out"):
         return "SOLUTION CONVERGED" in open(filename).read()
@@ -359,22 +564,51 @@ class TSFoil(Plotter):
         df["mach"] = self.config.get("EMACH", 0.0)
         df["alpha"] = self.config.get("ALPHA", 0.0)
         
-        x, y = self.extract_mesh()
+        # Extract contour maps first to determine required mesh dimensions
+        mach_map = self.extract_mmap()
+        cp_map = self.extract_cpmp()
+        
+        # Determine the required mesh dimensions from contour data
+        if mach_map.size > 0:
+            contour_shape = mach_map.shape
+            print(f"   Contour data shape: {contour_shape}")
+        elif cp_map.size > 0:
+            contour_shape = cp_map.shape
+            print(f"   Contour data shape: {contour_shape}")
+        else:
+            contour_shape = None
+            print("   No contour data available")
+        
+        # Read mesh from Tecplot format
+        try:
+            x, y = self.extract_mesh_tecplot_compatible("mesh.dat", contour_shape)
+            print("   Reading mesh from mesh.dat (Tecplot format)")
+        except FileNotFoundError:
+            print("   Warning: No mesh file found")
+            x, y = [], []
+        
         df["mesh_x"] = [x]
         df["mesh_y"] = [y]
 
-        i, x_c, cp_up, m_up, cp_low, m_low = self.extract_cpxs()
+        x_c, cp_up, m_up, cp_low, m_low = self.extract_cpxs()
         df["x_c"]   = [x_c]
         df["cp_up"] = [cp_up]
         df["m_up"]  = [m_up]
         df["cp_low"]= [cp_low]
         df["m_low"] = [m_low]
 
-        iteration, error = self.extract_iter()
-        df["iter"]  = [iteration]
-        df["error"] = [error]
-        df["mach_map"] = [self.extract_mmap()]
-        df["cp_map"]   = [self.extract_cpmp()]
+        try:
+            iteration, error = self.extract_iter()
+            df["iter"]  = [iteration]
+            df["error"] = [error]
+        except Exception as e:
+            print(f"   Warning: Could not extract iteration data: {e}")
+            df["iter"]  = [np.array([])]
+            df["error"] = [np.array([])]
+        
+        # Use the previously extracted contour maps
+        df["mach_map"] = [mach_map]
+        df["cp_map"]   = [cp_map]
 
         self.buffer = pd.concat([self.buffer, df], ignore_index=True)    
     
@@ -453,7 +687,7 @@ if __name__ == "__main__":
     # Load airfoil data
     print("\n1. Loading airfoil data...")
     tsfoil.load(os.path.join(path, "rae2822.dat"))
-    tsfoil.set({"alpha": 0.0})  # Set angle of attack to 0.0 degrees
+    tsfoil.set({"ALPHA": 0.5})
     
     # Single case execution
     print("\n2. Running single case (Mach 0.75)...")
@@ -466,8 +700,11 @@ if __name__ == "__main__":
     # Plot single case results
     print("\n3. Plotting single case results...")
     
-    print("   - Grid layout")
+    print("   - Grid layout (basic)")
     tsfoil.plot_grid(save_to_folder=plots_dir)
+    
+    print("   - Full mesh from Tecplot format (detailed)")
+    tsfoil.plot_mesh_tecplot(save_to_folder=plots_dir, show_every_nth=2)
     
     print("   - Cp-x distribution")
     tsfoil.plot_cpx(save_to_folder=plots_dir)

@@ -83,11 +83,11 @@ module common_data
   ! Analytical mesh arrays (from COMMON /COM4/)
   real :: XIN(NMP_plus2)  ! mesh x-coordinates, room for 2 extra points in CKMESH
   real :: YIN(NMP_plus2)  ! mesh y-coordinates, room for 2 extra points in CKMESH
-  logical :: AMESH              ! use analytical mesh
+  logical :: AMESH        ! use analytical mesh
 
-  integer :: IMIN, IMAX       ! grid i-range
-  integer :: JMIN, JMAX       ! grid j-range
-  integer :: IMAXI, JMAXI  ! User-input maximum number of streamwise (X-direction) and spanwise (Y-direction) grid points
+  integer :: IMIN, IMAX   ! grid i-range
+  integer :: JMIN, JMAX   ! grid j-range
+  integer :: IMAXI, JMAXI ! User-input maximum number of streamwise (X-direction) and spanwise (Y-direction) grid points
 
   ! COM5: mesh derivative arrays
   real :: XDIFF(N_MESH_POINTS), YDIFF(N_MESH_POINTS)
@@ -186,7 +186,7 @@ module common_data
   real :: VTOP(N_MESH_POINTS), VBOT(N_MESH_POINTS), VUP(N_MESH_POINTS), VDOWN(N_MESH_POINTS)
   
   ! COM25: plot arrays
-  real :: CPL(N_MESH_POINTS), CPU(N_MESH_POINTS)
+  real :: CPU(N_MESH_POINTS), CPL(N_MESH_POINTS) ! Pressure coefficient arrays on X-line (Y=0)
   integer :: IDLA
   
   ! COM27: transonic similarity state
@@ -230,7 +230,7 @@ module common_data
   integer, parameter :: UNIT_CPXS = 17          ! cpxs.out (Pressure coefficient vs. X-coordinate data)
   integer, parameter :: UNIT_MMAP = 18          ! mmap.out (Mach number map data)
   integer, parameter :: UNIT_CNVG = 19          ! cnvg.out (Convergence history file)
-  integer, parameter :: UNIT_MESH = 20          ! mesh.out (Mesh coordinate data)
+  integer, parameter :: UNIT_MESH = 20          ! mesh.dat (Mesh coordinate data)
   integer, parameter :: UNIT_CPMP = 21          ! cpmp.out (Pressure coefficient map data)
 
 contains
@@ -263,7 +263,6 @@ contains
     JBOT = JMIN + 1
     J1 = JBOT + 1
     J2 = JTOP - 1
-    AMESH = .false.
     IREF = 0  ! Refinement of mesh, 0 = no refinement, 1 = refinement
     ICUT = 2   ! Updated to match BLOCK DATA
     KSTEP = 1
@@ -326,7 +325,7 @@ contains
     FCR = .true.
     KUTTA = .true.
     ABORT1 = .false.
-    AMESH = .false. ! Automatic mesh generation
+    AMESH = .true. ! Automatic mesh generation
     
     ! Boundary condition parameters (from BLOCK DATA)
     BCFOIL = 3
