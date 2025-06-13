@@ -124,11 +124,11 @@ contains
   subroutine SETBC(IJUMP)
     use common_data, only: IMIN, IMAX, IUP, IDOWN, JMIN, JMAX, JTOP, JBOT, J1, J2
     use common_data, only: ILE, ITE, FXLBC, FXUBC, FXL, FXU
-    use common_data, only: AK, ALPHA, BCTYPE, POR, IREF, KSTEP, IFOIL
+    use common_data, only: AK, ALPHA, BCTYPE, POR, KSTEP, IFOIL
     use common_data, only: CYYBLU, CYYBUD, WSLP
     implicit none
     integer, intent(in) :: IJUMP
-    integer :: I, IF, N, NFOIL, INT, JINT
+    integer :: I, IF1, N, NFOIL, INT, JINT
 
     ! Set limits on I and J indices
     if (IJUMP <= 0) then
@@ -158,19 +158,17 @@ contains
     
     ! Enter body slopes at mesh points on airfoil
     ! into arrays for body boundary conditions
-    if (IREF <= 0) KSTEP = 1
-    if (IREF == 1) KSTEP = 2
-    if (IREF == 2) KSTEP = 4
+    KSTEP = 1
     
     NFOIL = ITE - ILE + 1
-    IF = IFOIL + KSTEP
+    IF1 = IFOIL + KSTEP
     I = ITE + 1
     
     do N = 1, NFOIL
       I = I - 1
-      IF = IF - KSTEP
-      FXLBC(I) = CYYBLU * (FXL(IF) - ALPHA + WSLP(I,2))
-      FXUBC(I) = CYYBUD * (FXU(IF) - ALPHA + WSLP(I,1))
+      IF1 = IF1 - KSTEP
+      FXLBC(I) = CYYBLU * (FXL(IF1) - ALPHA + WSLP(I,2))
+      FXUBC(I) = CYYBUD * (FXU(IF1) - ALPHA + WSLP(I,1))
     end do
 
   end subroutine SETBC

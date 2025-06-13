@@ -452,7 +452,7 @@ class TSFoil(Plotter):
     
     def __init__(self, tsfoil_exe_path=None):
         self.airfoil      = {}
-        self.config       = {"ICUT" :0, "MAXIT":2500}
+        self.config       = {"MAXIT":2500}
         self.current_foil = ""
         self.buffer       = pd.DataFrame()
         self.LEN_HEADER   = 26

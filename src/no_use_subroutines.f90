@@ -3,6 +3,9 @@
 
 module no_use_subroutines
   implicit none
+
+  integer :: IREF   ! mesh refinement flag (0 = no refinement, 1 = refinement)
+  integer :: ICUT   ! number of coarse refinements (0)
   
 contains
 
@@ -466,5 +469,449 @@ contains
     end do
     
   end subroutine DLAOUT
+
+  ! GUESSP: Initialize potential array P
+  ! UNUSED: Never called in current implementation
+  ! Initialize potential array P based on PSTART value
+  subroutine GUESSP()
+    ! SUBROUTINE INITIALIZES P ARRAY AS FOLLOWS
+    !      PSTART = 1  P SET TO ZERO
+    !      PSTART = 2  P READ FROM UNIT 7
+    !      PSTART = 3  P SET TO VALUES IN CORE
+    ! IF PSTART = 2 OR 3, SOLUTION IS INTERPOLATED FROM
+    ! XOLD, YOLD TO X,Y
+    ! BOUNDARY CONDITIONS FOR P ON OUTER BOUNDARIES ARE
+    ! AUTOMATICALLY SET DURING INITIALIZATION
+    ! Called by - TSFOIL.
+    use common_data
+    use solver_module, only: EXTRAP
+    implicit none
+    integer :: I_LOOP, J_LOOP, K_LOOP, INEW, JNEW, ISTEP, JSTEP
+    real :: TEST, XP_LOCAL, YP_LOCAL, X1, X2, Y1, Y2, P1, P2
+    real :: PT(N_MESH_POINTS)  ! Temporary array for interpolation, matches original COM30
+    logical :: x_meshes_same, y_meshes_same
+    
+    ! Branch to appropriate location using modern select case
+    select case (PSTART)
+    case (1)
+      ! PSTART = 1
+      ! P SET TO ZERO
+      do I_LOOP = 1, N_MESH_POINTS + 1
+        do J_LOOP = 1, N_MESH_POINTS + 2
+          P(J_LOOP, I_LOOP) = 0.0
+        end do
+      end do
+      DUB = 0.0
+      CIRCFF = 0.0
+      CIRCTE = 0.0
+      return
+    
+    case (2)
+      ! PSTART = 2
+      ! P, X, Y ARRAYS READ FROM UNIT 7 IN SUBROUTINE READIN
+      ! TOGETHER WITH INFORMATION ABOUT OLD SOLUTION
+      
+    case (3)
+      ! PSTART = 3
+      ! ARRAYS FROM PREVIOUS CASE ARE ALREADY IN P,XOLD,YOLD
+      
+    end select
+    
+    ! Common code for PSTART = 2 or 3
+    DUB = DUBO
+    CIRCFF = CLOLD / CLFACT
+    CIRCTE = CIRCFF
+    
+    ! FOR PSTART = 2 OR 3, OLD P ARRAY ON XOLD, YOLD MESH
+    ! MUST BE INTERPOLATED ONTO NEW X Y MESH.
+    
+    ! INTERPOLATE P FROM XOLD,YOLD TO X,YOLD
+    ! CHECK TO SEE IF XOLD AND XIN ARE THE SAME MESH
+    x_meshes_same = .true.
+    if (IMAXI == IMAXO) then
+      do I_LOOP = IMIN, IMAXI
+        TEST = abs(XIN(I_LOOP) - XOLD(I_LOOP))
+        if (TEST > 0.0001) then
+          x_meshes_same = .false.
+          exit
+        end if
+      end do
+    else
+      x_meshes_same = .false.
+    end if
+    
+    if (x_meshes_same) then
+      ! XIN AND XOLD ARE SAME MESH.
+      ! P ARRAY MAY BE INTERPOLATED BY SIMPLE DELETION OF
+      ! VALUES AT MESH POINTS DELETED IN SUBROUTINE CUTOUT
+      ! IF IREF .LE. ZERO, NO INTERPOLATION IS NEEDED
+      if (IREF > 0) then
+        ISTEP = 2 * IREF
+        do J_LOOP = JMINO, JMAXO
+          INEW = 0
+          do I_LOOP = IMINO, IMAXO, ISTEP
+            INEW = INEW + 1
+            P(J_LOOP, INEW) = P(J_LOOP, I_LOOP)
+          end do
+        end do
+      end if
+      ! INTERPOLATION IN X DIRECTION COMPLETE IF XIN AND XOLD ARE THE SAME.
+
+    else
+      ! INTERPOLATE FROM XOLD TO X FOR ARBITRARY CASE
+      do J_LOOP = JMINO, JMAXO
+        YP_LOCAL = YOLD(J_LOOP)
+        do I_LOOP = IMIN, IMAX
+          XP_LOCAL = X(I_LOOP)
+          if (XP_LOCAL < XOLD(IMINO) .or. XP_LOCAL > XOLD(IMAXO)) then
+            ! NEW X MESH POINT IS OUTSIDE RANGE OF OLD X MESH
+            ! FOR SUPERSONIC FREESTREAM SET P=0, FOR SUBSONIC
+            ! FREESTREAM, EXTRAPOLATE USING FAR FIELD SOLUTION
+            PT(I_LOOP) = 0.0
+            if (AK > 0.0) call EXTRAP(XP_LOCAL, YP_LOCAL, PT(I_LOOP))
+          else
+            ! NEW X MESH POINT WITHIN RANGE OF OLD X MESH
+            ! FIND VALUE OF XOLD .GT. XP
+            X2 = XOLD(1)
+            K_LOOP = 0
+            do
+              K_LOOP = K_LOOP + 1
+              X1 = X2
+              X2 = XOLD(K_LOOP)
+              if (X2 >= XP_LOCAL) exit
+            end do
+            
+            if (X2 == XP_LOCAL) then
+              PT(I_LOOP) = P(J_LOOP, K_LOOP)
+            else
+              P1 = P(J_LOOP, K_LOOP-1)
+              P2 = P(J_LOOP, K_LOOP)
+              PT(I_LOOP) = P1 + (P2 - P1) / (X2 - X1) * (XP_LOCAL - X1)
+            end if
+          end if
+        end do
+        ! WRITE NEW VALUES FOR P INTO P ARRAY
+        do I_LOOP = IMIN, IMAX
+          P(J_LOOP, I_LOOP) = PT(I_LOOP)
+        end do
+      end do
+    end if
+    
+    ! INTERPOLATE FROM X,YOLD TO X,Y
+    ! CHECK TO SEE IF YIN AND YOLD ARE THE SAME MESH
+    y_meshes_same = .true.
+    if (JMAXI == JMAXO) then
+      do J_LOOP = JMIN, JMAXI
+        TEST = abs(YIN(J_LOOP) - YOLD(J_LOOP))
+        if (TEST > 0.0001) then
+          y_meshes_same = .false.
+          exit
+        end if
+      end do
+    else
+      y_meshes_same = .false.
+    end if
+    
+    if (y_meshes_same) then
+      ! YIN AND YOLD ARE THE SAME MESH
+      ! P ARRAY MAY BE INTERPOLATED BY SIMPLE DELETION OF
+      ! VALUES AT MESH POINTS DELETED IN SUBROUTINE CUTOUT
+      ! IF IREF .LE. ZERO, NO INTERPOLATION IS NEEDED
+      if (IREF > 0) then
+        JSTEP = 2 * IREF
+        do I_LOOP = IMIN, IMAX
+          JNEW = 0
+          do J_LOOP = JMINO, JMAXO, JSTEP
+            JNEW = JNEW + 1
+            P(JNEW, I_LOOP) = P(J_LOOP, I_LOOP)
+          end do
+        end do
+      end if
+      ! INTERPOLATION IN Y DIRECTION COMPLETE IF YIN AND YOLD ARE THE SAME.
+
+    else      
+      ! INTERPOLATE YOLD TO Y FOR ARBITRARY CASE
+      do I_LOOP = IMIN, IMAX
+        XP_LOCAL = X(I_LOOP)
+        K_LOOP = 2
+        Y1 = YOLD(1)
+        do J_LOOP = JMIN, JMAX
+          YP_LOCAL = Y(J_LOOP)
+          if (YP_LOCAL < YOLD(JMINO)) then
+            ! NEW Y MESH POINT BELOW RANGE OF OLD Y MESH
+            PT(J_LOOP) = P(JMINO, I_LOOP)
+            if (AK > 0.0 .and. BCTYPE == 1) call EXTRAP(XP_LOCAL, YP_LOCAL, PT(J_LOOP))
+          else if (YP_LOCAL > YOLD(JMAXO)) then
+            ! NEW Y MESH POINT ABOVE RANGE OF OLD Y MESH
+            PT(J_LOOP) = P(JMAXO, I_LOOP)
+            if (AK > 0.0 .and. BCTYPE == 1) call EXTRAP(XP_LOCAL, YP_LOCAL, PT(J_LOOP))
+          else
+            ! NEW Y MESH POINT WITHIN RANGE OF OLD Y MESH
+            ! FIND VALUE OF YOLD .GT. YP
+            Y2 = Y1
+            K_LOOP = K_LOOP - 1
+            do
+              K_LOOP = K_LOOP + 1
+              Y1 = Y2
+              Y2 = YOLD(K_LOOP)
+              if (Y2 > YP_LOCAL) exit
+            end do
+            P1 = P(K_LOOP-1, I_LOOP)
+            P2 = P(K_LOOP, I_LOOP)
+            PT(J_LOOP) = P1 + (P2 - P1) / (Y2 - Y1) * (YP_LOCAL - Y1)
+          end if
+        end do
+        ! PUT NEW P VALUES INTO P ARRAY
+        do J_LOOP = JMIN, JMAX
+          P(J_LOOP, I_LOOP) = PT(J_LOOP)
+        end do
+      end do
+    end if
+  
+  end subroutine GUESSP
+
+  ! CUTOUT: Initial mesh setup, original mesh (IREF=-1) or create coarse mesh (IREF>=0)
+  ! UNUSED: Never called in current implementation
+  ! The function of original mesh setup is now handled in READIN in io_module.f90
+  subroutine CUTOUT()
+    use common_data, only: X, Y, XMID, YMID, IREF, ICUT, XIN, YIN, IMIN, IMAX, JMIN, JMAX, JLOW, JUP, ITE
+    implicit none
+    integer :: I, J, K, JE, JST
+
+    ! Check if IREF = -1 (mesh cannot be refined)
+    if (IREF == -1) then
+      ! Load XIN,YIN into X,Y
+      do I = IMIN, IMAX
+        X(I) = XIN(I)
+      end do
+      do J = JMIN, JMAX
+        Y(J) = YIN(J)
+      end do
+      IREF = 0
+      return
+    end if
+
+    ! First halving: X-direction
+    K = IMIN - 1
+    do I = IMIN, IMAX, 2
+      K = K + 1
+      XMID(K) = XIN(I)
+    end do
+    IMAX = (IMAX - IMIN) / 2 + IMIN
+    call ISLIT(XMID)
+    
+    ! First halving: Y-direction, splitting above and below slit
+    K = JMIN - 1
+    JE = JLOW - 1
+    do J = JMIN, JE, 2
+      K = K + 1
+      YMID(K) = YIN(J)
+    end do
+    JST = JUP + 1
+    do J = JST, JMAX, 2
+      K = K + 1
+      YMID(K) = YIN(J)
+    end do
+    JMAX = (JMAX - JMIN) / 2 + JMIN
+    call JSLIT(YMID)
+
+    ! Set IREF to 1 indicating first halving
+    IREF = 1
+    
+    ! First halving complete. Check if no. of points is odd.
+    if (ICUT == 1 .or. &
+        mod(ITE - IMIN + 1, 2) == 0 .or. &
+        mod(IMAX - ITE + 1, 2) == 0 .or. &
+        mod(JLOW - JMIN, 2) == 0 .or. &
+        mod(JMAX - JUP, 2) == 0) then
+      ! Only one mesh refinement possible.
+      do I = IMIN, IMAX
+        X(I) = XMID(I)
+      end do
+      do J = JMIN, JMAX
+        Y(J) = YMID(J)
+      end do
+      return
+    end if
+
+    ! All points are odd so cut again.
+    K = IMIN - 1
+    do I = IMIN, IMAX, 2
+      K = K + 1
+      X(K) = XMID(I)
+    end do
+    IMAX = (IMAX - IMIN) / 2 + IMIN
+    call ISLIT(X)
+    
+    K = JMIN - 1
+    JE = JLOW - 1
+    do J = JMIN, JE, 2
+      K = K + 1
+      Y(K) = YMID(J)
+    end do
+    JST = JUP + 1
+    do J = JST, JMAX, 2
+      K = K + 1
+      Y(K) = YMID(J)
+    end do
+    JMAX = (JMAX - JMIN) / 2 + JMIN
+    call JSLIT(Y)
+    
+    ! Set IREF to 2 indicating second halving
+    IREF = 2
+  end subroutine CUTOUT
+
+  ! REFINE: Refine mesh
+  ! UNUSED: Never called in current implementation
+  ! Refine mesh and interpolate solution onto finer grid
+  subroutine REFINE()
+    use common_data, only: XIN, YIN, XMID, YMID, P, X, Y, IMIN, IMAX, JMIN, JMAX, ILE, ITE, JLOW, JUP, IREF
+    use common_data, only: NWDGE, WSLP, N_MESH_POINTS
+    implicit none
+    integer :: I, J, K, JMAXO_LOCAL, JE, JST, IM2, JM2, JL
+    integer :: ILEO, INC, M, ISTEP, ISTRT, IEND, IM, IMM
+    real :: PT(N_MESH_POINTS)
+    real :: D1, D2, CL1, CL2, CU1, CU2, RATIO
+    real :: XLEO_LOCAL  ! Must be REAL to store X-coordinate
+
+    JE = 0
+    JST = 0
+    JL = 0
+
+    ! Store original leading edge position and index for viscous wedge processing
+    XLEO_LOCAL = X(ILE)
+    ILEO = ILE
+    JMAXO_LOCAL = JMAX
+
+    ! Compute new grid size
+    IMAX = 2*(IMAX - IMIN) + IMIN
+    JMAX = 2*(JMAX - JMIN) + JMIN + 1
+    IM2 = IMAX - 2
+    JM2 = JMAX - 2
+
+    ! Choose source mesh (coarse or mid) based on IREF
+    if (IREF <= 1) then
+      do I = IMIN, IMAX
+        X(I) = XIN(I)
+      end do
+      do J = JMIN, JMAX
+        Y(J) = YIN(J)
+      end do
+      IREF = 0
+    else
+      do I = IMIN, IMAX
+        X(I) = XMID(I)
+      end do
+      do J = JMIN, JMAX
+        Y(J) = YMID(J)
+      end do
+      IREF = 1
+    end if
+
+    ! Update mesh indices
+    call ISLIT(X)
+    call JSLIT(Y)    ! Spread P(J,I) to alternate I(X-MESH) points
+    do J = JMIN, JMAXO_LOCAL
+      K = IMIN - 1
+      do I = IMIN, IMAX, 2
+        K = K + 1
+        PT(I) = P(J,K)
+      end do
+      do I = IMIN, IMAX, 2
+        P(J,I) = PT(I)
+      end do
+    end do
+
+    ! Spread P(J,I) to alternate J (Y-MESH) points
+    do I = IMIN, IMAX, 2
+      K = JMIN - 1
+      JE = JLOW - 1
+      JL = JLOW - 2
+      do J = JMIN, JE, 2
+        K = K + 1
+        PT(J) = P(K,I)
+      end do
+      JST = JUP + 1
+      do J = JST, JMAX, 2
+        K = K + 1
+        PT(J) = P(K,I)
+      end do
+      do J = JMIN, JE, 2
+        P(J,I) = PT(J)
+      end do
+      do J = JST, JMAX, 2
+        P(J,I) = PT(J)
+      end do
+    end do
+
+    ! Interpolate to fill in the missing P values
+    do I = IMIN, IM2
+      PT(I) = (X(I+1)-X(I)) / (X(I+2)-X(I))
+    end do
+    do J = JMIN, JE, 2
+      do I = IMIN, IM2, 2
+        P(J,I+1) = P(J,I) + PT(I) * (P(J,I+2) - P(J,I))
+      end do
+    end do
+    do J = JST, JMAX, 2
+      do I = IMIN, IM2, 2
+        P(J,I+1) = P(J,I) + PT(I) * (P(J,I+2) - P(J,I))
+      end do
+    end do
+    do J = JMIN, JM2
+      PT(J) = (Y(J+1)-Y(J)) / (Y(J+2)-Y(J))
+    end do
+    do I = IMIN, IMAX
+      do J = JMIN, JL, 2
+        P(J+1,I) = P(J,I) + PT(J) * (P(J+2,I) - P(J,I))
+      end do
+      do J = JST, JM2, 2
+        P(J+1,I) = P(J,I) + PT(J) * (P(J+2,I) - P(J,I))
+      end do
+    end do
+
+    ! Use extrapolation for JLOW, JUP
+    D1 = Y(JLOW) - Y(JLOW-1)
+    D2 = Y(JLOW-1) - Y(JLOW-2)
+    CL1 = (D1 + D2) / D2
+    CL2 = D1/D2
+    D1 = Y(JUP+1) - Y(JUP)
+    D2 = Y(JUP+2) - Y(JUP+1)
+    CU1 = (D1 + D2) / D2
+    CU2 = D1 / D2
+    do I = IMIN, IMAX
+      P(JUP,I) = CU1*P(JUP+1,I) - CU2*P(JUP+2,I)
+      P(JLOW,I) = CL1*P(JLOW-1,I) - CL2*P(JLOW-2,I)
+    end do
+
+    ! Expand viscous wedge slopes to new grid
+    if (NWDGE == 0) return
+    INC = 0
+    if (X(ILE) < XLEO_LOCAL) INC = 1
+    M = 0
+    do while (M < 2)
+      M = M + 1
+      do I = IMIN, IMAX
+        PT(I) = 0.0
+      end do
+      ISTEP = ILEO - 1
+      ISTRT = ILE + INC
+      IEND = ITE + INC
+      do I = ISTRT, IEND, 2
+        ISTEP = ISTEP + 1
+        PT(I) = WSLP(ISTEP,M)
+      end do
+      do I = ISTRT, IEND, 2
+        IM = I - 1
+        IMM = IM - 1
+        WSLP(I,M) = PT(I)
+        RATIO = (X(IM)-X(IMM))/(X(I)-X(IMM))
+        WSLP(IM,M) = PT(IMM)+(PT(I)-PT(IMM))*RATIO
+      end do
+      if (M >= 2) exit
+    end do
+  end subroutine REFINE
+
+
 
 end module no_use_subroutines

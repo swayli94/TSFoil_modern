@@ -187,7 +187,7 @@ contains
   ! Main iteration loop: solver, convergence, and flow updates
   subroutine SOLVE()
     use common_data, only: MAXIT, ERROR, CVERGE, DVERGE, IPRTER, ABORT1
-    use common_data, only: IREF, WE, EPS, IMIN, JMIN, JMAX, IUP, IDOWN
+    use common_data, only: WE, EPS, IMIN, JMIN, JMAX, IUP, IDOWN
     use common_data, only: JTOP, JBOT, KSTEP
     use common_data, only: P, Y, AK
     use common_data, only: EMU, POLD, DCIRC, OUTERR, I1, I2, IERROR, JERROR
@@ -213,19 +213,10 @@ contains
     write(UNIT_OUTPUT, '(1H1)')
     
     ! Calculate maximum iterations based on refinement level
-    if (IREF == 0) then
-      MAXITM = MAXIT
-    else if (IREF == 1) then
-      MAXITM = MAXIT / 2
-    else if (IREF == 2) then
-      MAXITM = MAXIT / 4
-    else
-      write(UNIT_OUTPUT, '(A,I2)') 'Invalid refinement level: ', IREF
-      stop 1
-    end if
+    MAXITM = MAXIT
     
     ! Set relaxation parameter based on refinement level
-    KK = 3 - IREF
+    KK = 3
     WEP = WE(KK)
     WI = 1.0 / WEP
     

@@ -1,6 +1,5 @@
 Input File for TSFOIL
 $INP
-ICUT = 0
 IMAXI = 77
 JMAXI = 58
 MAXIT = 2500

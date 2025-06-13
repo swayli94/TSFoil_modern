@@ -76,8 +76,8 @@ tsfoil_modern/
    |---------------------|-------------|--------|
    | `AYMESH` | Analytical mesh generation | ✅ |
    | `CKMESH` | Mesh validation/adjustment | ✅ |
-   | `CUTOUT` | Mesh coarsening | ✅ |
-   | `REFINE` | Mesh refinement | ✅ |
+   | `CUTOUT` | Mesh coarsening | UNUSED |
+   | `REFINE` | Mesh refinement | UNUSED |
    | `ISLIT(X)` | Leading/trailing edge location | ✅ |
    | `JSLIT(Y)` | Upper/lower surface location | ✅ |
 
@@ -124,7 +124,7 @@ tsfoil_modern/
    | `CDCOLE` | Drag coefficient assembly | ✅ |
    | `M1LINE` | Sonic line detection | ✅ |
    | `PLTSON` | Sonic line printer | ✅ |
-   | `GUESSP` | Solution initialization | ✅ |
+   | `GUESSP` | Solution initialization | UNUSED |
    | `MACHMP` | Print map of Mach number | Rewritten to `OUTPUT_CP_MACH_FIELD` |
 
 ### Compilation Dependencies

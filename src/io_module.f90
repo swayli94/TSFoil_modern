@@ -8,7 +8,7 @@ module io_module
   ! Complete namelist matching the original /INP/ namelist exactly
   namelist /INP/ AK, ALPHA, AMESH, BCFOIL, BCTYPE, CLSET, &
                   CVERGE, DELTA, DVERGE, EMACH, EPS, F, &
-                  FCR, GAM, H, ICUT, IMAXI, IMIN, &
+                  FCR, GAM, H, IMAXI, IMIN, &
                   IPRTER, JMAXI, JMIN, KUTTA, MAXIT, NL, &
                   NU, PHYS, POR, PRTFLO, PSAVE, &
                   PSTART, RIGF, SIMDEF, WCIRC, WE, &
@@ -17,7 +17,7 @@ module io_module
                   FLPLOC, IDLA
   
   ! Declare public procedures
-  public :: READIN, SCALE, PRINT, PRINT1, PRTFLD, PRTMC, PRTSK, PRTWAL, SAVEP, GUESSP
+  public :: READIN, SCALE, PRINT, PRINT1, PRTFLD, PRTMC, PRTSK, PRTWAL, SAVEP
   public :: open_output_files, close_output_files, CDCOLE, FIXPLT, CPPLOT, PLTSON, INPERR
 
 contains
@@ -52,7 +52,7 @@ contains
     use mesh_module, only: ISLIT, JSLIT, CKMESH, AYMESH
     implicit none    
     character(len=4), parameter :: DONE = 'FINI'  ! Declare DONE to match original exactly
-    integer :: J_VAR, IM1, JM1, IDX, JDX
+    integer :: J_VAR, IM1, JM1, IDX, JDX, I_ITER, J_ITER
     real :: TERM, HTM, HTP, YS, YE
     character(len=100) :: IN_FILENAME
     integer :: ios
@@ -105,8 +105,8 @@ contains
       GAM, WCIRC, MAXIT, IPRTER, FCR
     write(UNIT_OUTPUT, '(1H0,8X,3HF =,F9.5,2X,8HCVERGE =,F9.5,5X,4HNU =,I4,3X,8HSIMDEF =,I3)') &
       F, CVERGE, NU, SIMDEF
-    write(UNIT_OUTPUT, '(1H0,8X,3HH =,F9.5,2X,8HDVERGE =,F9.1,5X,4HNL =,I4,5X,6HICUT =,I3)') &
-      H, DVERGE, NL, ICUT
+    write(UNIT_OUTPUT, '(1H0,8X,3HH =,F9.5,2X,8HDVERGE =,F9.1,5X,4HNL =,I4)') &
+      H, DVERGE, NL
     write(UNIT_OUTPUT, '(1H0,7X,5HWE = ,F4.2,2(1H,,F4.2))') WE
     
     if (NWDGE == 1) write(UNIT_OUTPUT, '(1H0,15X,12HMURMAN WEDGE,5X,8HREYNLD =,E10.3,5X,8HWCONST =,F9.5)') REYNLD, WCONST
@@ -133,6 +133,14 @@ contains
         end do
       end if
     end if
+
+    ! Load XIN,YIN into X,Y
+    do I_ITER = IMIN, IMAX
+      X(I_ITER) = XIN(I_ITER)
+    end do
+    do J_ITER = JMIN, JMAX
+      Y(J_ITER) = YIN(J_ITER)
+    end do
 
     ! Output mesh coordinates
     write(UNIT_OUTPUT, '(1H0,4X,3HXIN)')
@@ -511,14 +519,7 @@ contains
     write(UNIT_OUTPUT, '(A, /, 2X, A)') &
           '1 FORCE COEFFICIENTS, PRESSURE COEFFICIENT, AND MACH NUMBER', &
           '(OR SIMILARITY PARAMETER) ON BODY AND DIVIDING STREAM LINE.'
-    select case (IREF)
-      case (2)
-        write(UNIT_OUTPUT, '(20X,11HCOARSE MESH)')
-      case (1) 
-        write(UNIT_OUTPUT, '(20X,11HMEDIUM MESH)')
-      case (0)
-        write(UNIT_OUTPUT, '(20X,11H FINAL MESH)')
-    end select
+    write(UNIT_OUTPUT, '(20X,11H FINAL MESH)')
     
     write(UNIT_OUTPUT, '(1H0,9X,4HCL =,F10.6/10X,4HCM =,F10.6/9X,5HCP* =,F10.6)') CL_val, CM, CPSTAR
     write(UNIT_SUMMARY, '(1H0,9X,4HCL =,F16.12/10X,4HCM =,F16.12/9X,5HCP* =,F16.12)') CL_val, CM, CPSTAR
@@ -527,9 +528,6 @@ contains
     if (CPL(IMIN) < CPSTAR .and. CPL(IMIN+1) > CPSTAR) then
       write(UNIT_OUTPUT, '(A, //, A)') '0', &
            ' DETACHED SHOCK WAVE UPSTREAM OF X-MESH,SOLUTION TERMINATED.'
-      if (IREF /= 2) then
-        ABORT1 = .true.
-      end if
       return
     end if
     
@@ -1090,204 +1088,6 @@ contains
     end do    
   end subroutine SAVEP
   
-  ! Initialize potential array P based on PSTART value
-  subroutine GUESSP()
-    ! SUBROUTINE INITIALIZES P ARRAY AS FOLLOWS
-    !      PSTART = 1  P SET TO ZERO
-    !      PSTART = 2  P READ FROM UNIT 7
-    !      PSTART = 3  P SET TO VALUES IN CORE
-    ! IF PSTART = 2 OR 3, SOLUTION IS INTERPOLATED FROM
-    ! XOLD, YOLD TO X,Y
-    ! BOUNDARY CONDITIONS FOR P ON OUTER BOUNDARIES ARE
-    ! AUTOMATICALLY SET DURING INITIALIZATION
-    ! Called by - TSFOIL.
-    use common_data
-    use solver_module, only: EXTRAP
-    implicit none
-    integer :: I_LOOP, J_LOOP, K_LOOP, INEW, JNEW, ISTEP, JSTEP
-    real :: TEST, XP_LOCAL, YP_LOCAL, X1, X2, Y1, Y2, P1, P2
-    real :: PT(N_MESH_POINTS)  ! Temporary array for interpolation, matches original COM30
-    logical :: x_meshes_same, y_meshes_same
-    
-    ! Branch to appropriate location using modern select case
-    select case (PSTART)
-    case (1)
-      ! PSTART = 1
-      ! P SET TO ZERO
-      do I_LOOP = 1, N_MESH_POINTS + 1
-        do J_LOOP = 1, N_MESH_POINTS + 2
-          P(J_LOOP, I_LOOP) = 0.0
-        end do
-      end do
-      DUB = 0.0
-      CIRCFF = 0.0
-      CIRCTE = 0.0
-      return
-    
-    case (2)
-      ! PSTART = 2
-      ! P, X, Y ARRAYS READ FROM UNIT 7 IN SUBROUTINE READIN
-      ! TOGETHER WITH INFORMATION ABOUT OLD SOLUTION
-      
-    case (3)
-      ! PSTART = 3
-      ! ARRAYS FROM PREVIOUS CASE ARE ALREADY IN P,XOLD,YOLD
-      
-    end select
-    
-    ! Common code for PSTART = 2 or 3
-    DUB = DUBO
-    CIRCFF = CLOLD / CLFACT
-    CIRCTE = CIRCFF
-    
-    ! FOR PSTART = 2 OR 3, OLD P ARRAY ON XOLD, YOLD MESH
-    ! MUST BE INTERPOLATED ONTO NEW X Y MESH.
-    
-    ! INTERPOLATE P FROM XOLD,YOLD TO X,YOLD
-    ! CHECK TO SEE IF XOLD AND XIN ARE THE SAME MESH
-    x_meshes_same = .true.
-    if (IMAXI == IMAXO) then
-      do I_LOOP = IMIN, IMAXI
-        TEST = abs(XIN(I_LOOP) - XOLD(I_LOOP))
-        if (TEST > 0.0001) then
-          x_meshes_same = .false.
-          exit
-        end if
-      end do
-    else
-      x_meshes_same = .false.
-    end if
-    
-    if (x_meshes_same) then
-      ! XIN AND XOLD ARE SAME MESH.
-      ! P ARRAY MAY BE INTERPOLATED BY SIMPLE DELETION OF
-      ! VALUES AT MESH POINTS DELETED IN SUBROUTINE CUTOUT
-      ! IF IREF .LE. ZERO, NO INTERPOLATION IS NEEDED
-      if (IREF > 0) then
-        ISTEP = 2 * IREF
-        do J_LOOP = JMINO, JMAXO
-          INEW = 0
-          do I_LOOP = IMINO, IMAXO, ISTEP
-            INEW = INEW + 1
-            P(J_LOOP, INEW) = P(J_LOOP, I_LOOP)
-          end do
-        end do
-      end if
-      ! INTERPOLATION IN X DIRECTION COMPLETE IF XIN AND XOLD ARE THE SAME.
-
-    else
-      ! INTERPOLATE FROM XOLD TO X FOR ARBITRARY CASE
-      do J_LOOP = JMINO, JMAXO
-        YP_LOCAL = YOLD(J_LOOP)
-        do I_LOOP = IMIN, IMAX
-          XP_LOCAL = X(I_LOOP)
-          if (XP_LOCAL < XOLD(IMINO) .or. XP_LOCAL > XOLD(IMAXO)) then
-            ! NEW X MESH POINT IS OUTSIDE RANGE OF OLD X MESH
-            ! FOR SUPERSONIC FREESTREAM SET P=0, FOR SUBSONIC
-            ! FREESTREAM, EXTRAPOLATE USING FAR FIELD SOLUTION
-            PT(I_LOOP) = 0.0
-            if (AK > 0.0) call EXTRAP(XP_LOCAL, YP_LOCAL, PT(I_LOOP))
-          else
-            ! NEW X MESH POINT WITHIN RANGE OF OLD X MESH
-            ! FIND VALUE OF XOLD .GT. XP
-            X2 = XOLD(1)
-            K_LOOP = 0
-            do
-              K_LOOP = K_LOOP + 1
-              X1 = X2
-              X2 = XOLD(K_LOOP)
-              if (X2 >= XP_LOCAL) exit
-            end do
-            
-            if (X2 == XP_LOCAL) then
-              PT(I_LOOP) = P(J_LOOP, K_LOOP)
-            else
-              P1 = P(J_LOOP, K_LOOP-1)
-              P2 = P(J_LOOP, K_LOOP)
-              PT(I_LOOP) = P1 + (P2 - P1) / (X2 - X1) * (XP_LOCAL - X1)
-            end if
-          end if
-        end do
-        ! WRITE NEW VALUES FOR P INTO P ARRAY
-        do I_LOOP = IMIN, IMAX
-          P(J_LOOP, I_LOOP) = PT(I_LOOP)
-        end do
-      end do
-    end if
-    
-    ! INTERPOLATE FROM X,YOLD TO X,Y
-    ! CHECK TO SEE IF YIN AND YOLD ARE THE SAME MESH
-    y_meshes_same = .true.
-    if (JMAXI == JMAXO) then
-      do J_LOOP = JMIN, JMAXI
-        TEST = abs(YIN(J_LOOP) - YOLD(J_LOOP))
-        if (TEST > 0.0001) then
-          y_meshes_same = .false.
-          exit
-        end if
-      end do
-    else
-      y_meshes_same = .false.
-    end if
-    
-    if (y_meshes_same) then
-      ! YIN AND YOLD ARE THE SAME MESH
-      ! P ARRAY MAY BE INTERPOLATED BY SIMPLE DELETION OF
-      ! VALUES AT MESH POINTS DELETED IN SUBROUTINE CUTOUT
-      ! IF IREF .LE. ZERO, NO INTERPOLATION IS NEEDED
-      if (IREF > 0) then
-        JSTEP = 2 * IREF
-        do I_LOOP = IMIN, IMAX
-          JNEW = 0
-          do J_LOOP = JMINO, JMAXO, JSTEP
-            JNEW = JNEW + 1
-            P(JNEW, I_LOOP) = P(J_LOOP, I_LOOP)
-          end do
-        end do
-      end if
-      ! INTERPOLATION IN Y DIRECTION COMPLETE IF YIN AND YOLD ARE THE SAME.
-
-    else      
-      ! INTERPOLATE YOLD TO Y FOR ARBITRARY CASE
-      do I_LOOP = IMIN, IMAX
-        XP_LOCAL = X(I_LOOP)
-        K_LOOP = 2
-        Y1 = YOLD(1)
-        do J_LOOP = JMIN, JMAX
-          YP_LOCAL = Y(J_LOOP)
-          if (YP_LOCAL < YOLD(JMINO)) then
-            ! NEW Y MESH POINT BELOW RANGE OF OLD Y MESH
-            PT(J_LOOP) = P(JMINO, I_LOOP)
-            if (AK > 0.0 .and. BCTYPE == 1) call EXTRAP(XP_LOCAL, YP_LOCAL, PT(J_LOOP))
-          else if (YP_LOCAL > YOLD(JMAXO)) then
-            ! NEW Y MESH POINT ABOVE RANGE OF OLD Y MESH
-            PT(J_LOOP) = P(JMAXO, I_LOOP)
-            if (AK > 0.0 .and. BCTYPE == 1) call EXTRAP(XP_LOCAL, YP_LOCAL, PT(J_LOOP))
-          else
-            ! NEW Y MESH POINT WITHIN RANGE OF OLD Y MESH
-            ! FIND VALUE OF YOLD .GT. YP
-            Y2 = Y1
-            K_LOOP = K_LOOP - 1
-            do
-              K_LOOP = K_LOOP + 1
-              Y1 = Y2
-              Y2 = YOLD(K_LOOP)
-              if (Y2 > YP_LOCAL) exit
-            end do
-            P1 = P(K_LOOP-1, I_LOOP)
-            P2 = P(K_LOOP, I_LOOP)
-            PT(J_LOOP) = P1 + (P2 - P1) / (Y2 - Y1) * (YP_LOCAL - Y1)
-          end if
-        end do
-        ! PUT NEW P VALUES INTO P ARRAY
-        do J_LOOP = JMIN, JMAX
-          P(J_LOOP, I_LOOP) = PT(J_LOOP)
-        end do
-      end do
-    end if
-  
-  end subroutine GUESSP
-
   ! Compute drag coefficient by momentum integral method
   ! Integrates around a contour enclosing the body and along all shocks inside the contour
   ! CALLED BY - PRINT.

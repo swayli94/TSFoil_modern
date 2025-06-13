@@ -1,6 +1,5 @@
 Input File for TSFOIL
 $INP
-ICUT = 0
 MAXIT = 2500
 alpha = 0.0
 EMACH = 0.75

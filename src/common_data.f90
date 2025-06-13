@@ -13,7 +13,7 @@ module common_data
   public :: N_MESH_POINTS, NMP_plus2, NMP_plus1
   public :: IMIN, IMAX, IUP, IDOWN, ILE, ITE, JMIN, JMAX, JUP, JLOW, JTOP, JBOT, J1, J2
   public :: AK, ALPHA, DUB, GAM1, RTK, PHYS
-  public :: IREF, ICUT, KSTEP, ABORT1
+  public :: KSTEP, ABORT1
   public :: XIN, YIN, AMESH
   public :: P, X, Y  ! Main solution and coordinate arrays
   public :: FL, FXL, FU, FXU, CAMBER, THICK, XFOIL, VOL, IFOIL
@@ -75,8 +75,6 @@ module common_data
   logical :: PHYS  ! physical (True) vs similarity (False)
 
   ! Control flags and refinement (from /COM3/)
-  integer :: IREF   ! mesh refinement flag
-  integer :: ICUT   ! number of coarse refinements
   integer :: KSTEP  ! SOR sweep step size
   logical :: ABORT1 ! input abort flag
 
@@ -240,12 +238,17 @@ contains
   subroutine initialize_common()
     implicit none
 
-    ! Initialize arrays to zero
-    P = 0.0
+    ! Initialize mesh coordinate arrays
     X = 0.0
     Y = 0.0    
     XIN = 0.0
     YIN = 0.0
+
+    ! Initialize potential array P
+    P = 0.0
+    DUB = 0.0
+    CIRCFF = 0.0
+    CIRCTE = 0.0
 
     ! Default initial values (will be overridden by READIN with IMAXI/JMAXI from input)
     IMIN = 1
@@ -264,8 +267,7 @@ contains
     JBOT = JMIN + 1
     J1 = JBOT + 1
     J2 = JTOP - 1
-    IREF = 0  ! Refinement of mesh, 0 = no refinement, 1 = refinement
-    ICUT = 2   ! Updated to match BLOCK DATA
+
     KSTEP = 1
     PHYS = .true.
     BCFOIL = 3   ! Updated to match BLOCK DATA
