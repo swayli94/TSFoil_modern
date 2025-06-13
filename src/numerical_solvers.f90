@@ -195,7 +195,7 @@ contains
     use common_data, only: THETA, BCTYPE
     use common_data, only: NWDGE, XSHK, THAMAX, AM1, ZETA, NVWPRT, NISHK
     use common_data, only: WI, C1
-    use common_data, only: CLFACT, CMFACT, UNIT_OUTPUT, UNIT_CNVG
+    use common_data, only: CLFACT, CMFACT, UNIT_OUTPUT
     use math_module, only: LIFT, PITCH, VWEDGE
     use solver_module, only: SETBC
     implicit none
@@ -225,8 +225,7 @@ contains
     
     ! Write iteration header
     write(UNIT_OUTPUT, '(/,"  ITER",5X,"CL",8X,"CM",4X,"IERR",1X,"JERR",4X,"ERROR",4X,"IRL",2X,"JRL",4X,"BIGRL",8X,"ERCIRC")')
-    write(UNIT_CNVG, '(/,"  ITER",5X,"CL",8X,"CM",4X,"IERR",1X,"JERR",4X,"ERROR",4X,"IRL",2X,"JRL",4X,"BIGRL",8X,"ERCIRC")')
-    
+
     ! Main iteration loop
     do ITER = 1, MAXITM
 
@@ -295,8 +294,6 @@ contains
             ERCIRC = abs(DCIRC)
             
             write(UNIT_OUTPUT, '(1X,I4,2F10.5,2I5,E13.4,2I4,2E13.4)') &
-                  ITER, CL_LOCAL, CM_LOCAL, IERROR, JERROR, ERROR, IRL, JRL, BIGRL, ERCIRC
-            write(UNIT_CNVG, '(1X,I4,2F10.5,2I5,E13.4,2I4,2E13.4)') &
                   ITER, CL_LOCAL, CM_LOCAL, IERROR, JERROR, ERROR, IRL, JRL, BIGRL, ERCIRC
             write(*, '(1X,I4,2F10.5,2I5,E13.4,2I4,2E13.4)') &
                   ITER, CL_LOCAL, CM_LOCAL, IERROR, JERROR, ERROR, IRL, JRL, BIGRL, ERCIRC

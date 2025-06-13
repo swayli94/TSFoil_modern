@@ -17,30 +17,28 @@ module io_module
                   FLPLOC, IDLA
   
   ! Declare public procedures
-  public :: READIN, SCALE, PRINT, PRINT1, PRTSK, PRTWAL
-  public :: open_output_files, close_output_files, CDCOLE, INPERR
+  public :: READIN, SCALE, PRINT
+  public :: open_output_files, close_output_files
 
 contains
   
   ! Open all output files with unique file units
   subroutine open_output_files()
-    use common_data, only: UNIT_OUTPUT, UNIT_SUMMARY, UNIT_CNVG
+    use common_data, only: UNIT_OUTPUT, UNIT_SUMMARY
     implicit none
     
     open(unit=UNIT_OUTPUT, file='tsfoil2.out', status='replace', action='write')   ! Unit 15
     open(unit=UNIT_SUMMARY, file='smry.out', status='replace', action='write')     ! Unit 16
-    open(unit=UNIT_CNVG, file='cnvg.out', status='replace', action='write')        ! Unit 19
         
   end subroutine open_output_files
 
   ! Close all output files
   subroutine close_output_files()
-    use common_data, only: UNIT_OUTPUT, UNIT_SUMMARY, UNIT_CNVG
+    use common_data, only: UNIT_OUTPUT, UNIT_SUMMARY
     implicit none
 
     close(UNIT_OUTPUT)   ! tsfoil2.out
     close(UNIT_SUMMARY)  ! smry.out
-    close(UNIT_CNVG)     ! cnvg.out
 
   end subroutine close_output_files
   
@@ -417,13 +415,20 @@ contains
     end if
     
     if (PHYS) then
-      write(UNIT_SUMMARY, '(A, F12.7, /, 12X, A, F12.7, /, 12X, A, F12.7, /, 12X, A, F12.7, /, 13X, A, F12.7, /, 13X, A, F12.7)') &
-        'CPFACT =', CPFACT, 'CDFACT =', CDFACT, 'CMFACT =', CMFACT, 'CLFACT =', CLFACT, 'YFACT =', YFACT, 'VFACT =', VFACT
+      write(UNIT_SUMMARY, '(12X,A,F12.7)') 'CPFACT =', CPFACT
+      write(UNIT_SUMMARY, '(12X,A,F12.7)') 'CDFACT =', CDFACT  
+      write(UNIT_SUMMARY, '(12X,A,F12.7)') 'CMFACT =', CMFACT
+      write(UNIT_SUMMARY, '(12X,A,F12.7)') 'CLFACT =', CLFACT
+      write(UNIT_SUMMARY, '(13X,A,F12.7)') 'YFACT = ', YFACT
+      write(UNIT_SUMMARY, '(13X,A,F12.7)') 'VFACT = ', VFACT
     end if
     
-    ! Call specialized print routines
-    call PRINT1()
+    ! Print shock and mach number on Y=0 line
+    call PRINT_SHOCK()
     
+    ! Output mesh data
+    call OUTPUT_MESH()
+
     ! Output field data
     call OUTPUT_FIELD()
     
@@ -440,22 +445,21 @@ contains
   
   ! Print Cp and Mach along body and build plot arrays
   ! Prints pressure coefficient and Mach number on Y=0 line, and plots CP along side of print
-  subroutine PRINT1()
+  subroutine PRINT_SHOCK()
     use common_data
     use math_module, only: PX, EMACH1, LIFT, PITCH
     implicit none
     
     ! Local variables exactly matching original - renamed to avoid conflicts
-    integer :: I_P1, NCOL_P1, NCOLS_P1, IEM
-    real :: CL_val, CM, CPMIN_P1, CPMAX_P1, CPLARG_P1, UNPCOL_P1, COL_P1
+    integer :: I_P1, IEM
+    real :: CL_val, CM
     real :: UL_P1, UU_P1, CJ01, CJ02
     real :: EM1L(N_MESH_POINTS), EM1U(N_MESH_POINTS)
     
     ! Compute coefficients exactly like original
     CL_val = LIFT(CLFACT)
     CM = PITCH(CMFACT)
-    CPMIN_P1 = 1.0E37
-    CPMAX_P1 = -CPMIN_P1
+
     IEM = 0
     CJ01 = -Y(JLOW)/(Y(JUP)-Y(JLOW))
     CJ02 = Y(JUP)/(Y(JUP)-Y(JLOW))
@@ -475,50 +479,30 @@ contains
       CPU(I_P1) = -2.0 * UU_P1 * CPFACT
       EM1U(I_P1) = EMACH1(UU_P1)
       if (EM1U(I_P1) > 1.3) IEM = 1
-      
-      CPMAX_P1 = max(CPMAX_P1, CPU(I_P1), CPL(I_P1))
-      CPMIN_P1 = min(CPMIN_P1, CPU(I_P1), CPL(I_P1))
     end do
-    
-    CPLARG_P1 = max(CPMAX_P1, abs(CPMIN_P1))
-    UNPCOL_P1 = CPLARG_P1 / 29.0
-    
-    ! Locate CP* for printer plot exactly like original
-    COL_P1 = -CPSTAR / UNPCOL_P1
-    NCOL_P1 = sign(int(abs(COL_P1) + 0.5), nint(COL_P1))
-    NCOLS_P1 = NCOL_P1 + 30
-      ! Print single variables using exact original format
-    write(UNIT_OUTPUT, '(A, /, 2X, A)') &
-          '1 FORCE COEFFICIENTS, PRESSURE COEFFICIENT, AND MACH NUMBER', &
-          '(OR SIMILARITY PARAMETER) ON BODY AND DIVIDING STREAM LINE.'
-    write(UNIT_OUTPUT, '(20X,11H FINAL MESH)')
-    
-    write(UNIT_SUMMARY, '(1H0,9X,4HCL =,F16.12/10X,4HCM =,F16.12/9X,5HCP* =,F16.12)') CL_val, CM, CPSTAR
+
+    write(UNIT_SUMMARY, '(A, F16.12)') 'CL =', CL_val
+    write(UNIT_SUMMARY, '(A, F16.12)') 'CM =', CM  
+    write(UNIT_SUMMARY, '(A, F16.12)') 'CP* =', CPSTAR
     
     ! Check for detached shock - exactly like original with GO TO 70 logic
     if (CPL(IMIN) < CPSTAR .and. CPL(IMIN+1) > CPSTAR) then
-      write(UNIT_OUTPUT, '(A, //, A)') '0', &
-           ' DETACHED SHOCK WAVE UPSTREAM OF X-MESH,SOLUTION TERMINATED.'
+      write(UNIT_SUMMARY, '(A)') '0 ***** CAUTION *****'
+      write(UNIT_SUMMARY, '(A)') ' DETACHED SHOCK WAVE UPSTREAM OF X-MESH,SOLUTION TERMINATED.'
       return
     end if
     
-    ! Mach number warning exactly like original
-    if (IEM == 1) then
-      if (PHYS) then
-        write(UNIT_OUTPUT, '(A, /, A, /, A, A)') &
-              '0***** CAUTION *****', &
-              ' MAXIMUM MACH NUMBER EXCEEDS 1.3', &
-              ' SHOCK JUMPS IN ERROR IF UPSTREAM NORMAL MACH NUMBER GREATER T', &
-              'HAN 1.3'
-      end if
+    ! Mach number warning
+    if (IEM == 1 .and. PHYS) then
+      write(UNIT_SUMMARY, '(A)') '0 ***** CAUTION *****'
+      write(UNIT_SUMMARY, '(A)') ' MAXIMUM MACH NUMBER EXCEEDS 1.3'
+      write(UNIT_SUMMARY, '(A)') ' SHOCK JUMPS IN ERROR IF UPSTREAM NORMAL MACH NUMBER GREATER THAN 1.3'
     end if
       
     ! Output airfoil surface data
     call OUTPUT_CP_MACH_XLINE(CL_val, CM, EM1L, EM1U)
 
-    call OUTPUT_MESH()
-    
-  end subroutine PRINT1
+  end subroutine PRINT_SHOCK
 
   ! Output mesh data to file in Tecplot format
   subroutine OUTPUT_MESH(OPTIONAL_FILE_NAME)
@@ -1082,32 +1066,37 @@ contains
     CD = CDC + CDWAVE
     
     ! Write drag coefficient breakdown
-    write(UNIT_OUTPUT, '("1CALCULATION OF DRAG COEFFICIENT BY MOMENTUM INTEGRAL METHOD")')
-    
-    write(UNIT_OUTPUT, '("0BOUNDARIES OF CONTOUR USED", 15X, "18HCONTRIBUTION TO CD/", &
-           & "16H UPSTREAM    X =", F12.6, 15X, "8HCDUP   =", F12.6, &
-           & "16H DOWNSTREAM  X =", F12.6, 15X, "8HCDDOWN =", F12.6, &
-           & "16H TOP         Y =", F12.6, 15X, "8HCDTOP  =", F12.6, &
-           & "16H BOTTOM      Y =", F12.6, 15X, "8HCDBOT  =", F12.6)') &
-           & XU_LOC, CDUP, XD_LOC, CDDOWN, YT_LOC, CDTOP, YB_LOC, CDBOT
-    
-    if (XD_LOC < 1.0) then
-      write(UNIT_SUMMARY, '("Body aft of X =", F15.9)') XD_LOC
-      write(UNIT_SUMMARY, '("Drag due to body, CD_body =", F15.9)') CDBODY
-    end if
-
-    write(UNIT_SUMMARY, '("Number of shocks inside contour =", I3)') NSHOCK
-    write(UNIT_SUMMARY, '("Drag due to shocks, CD_wave =", F15.9)') CDWAVE
-    write(UNIT_SUMMARY, '("Drag calculated from momentum integral, CD_int =", F15.9)') CDC
-    write(UNIT_SUMMARY, '("Total drag coefficient, CD =", F15.9)') CD
+    write(UNIT_OUTPUT, '(A)') '1'
+    write(UNIT_OUTPUT, '(A)') ' CALCULATION OF DRAG COEFFICIENT BY MOMENTUM INTEGRAL METHOD'
+    write(UNIT_OUTPUT, '(A)') ''
+    write(UNIT_OUTPUT, '(A)') ' BOUNDARIES OF CONTOUR USED CONTRIBUTION TO CD'
+    write(UNIT_OUTPUT, '(A,F12.6,A,F12.6)') ' UPSTREAM    X =', XU_LOC, '  CDUP   =', CDUP
+    write(UNIT_OUTPUT, '(A,F12.6,A,F12.6)') ' DOWNSTREAM  X =', XD_LOC, '  CDDOWN =', CDDOWN  
+    write(UNIT_OUTPUT, '(A,F12.6,A,F12.6)') ' TOP         Y =', YT_LOC, '  CDTOP  =', CDTOP
+    write(UNIT_OUTPUT, '(A,F12.6,A,F12.6)') ' BOTTOM      Y =', YB_LOC, '  CDBOT  =', CDBOT
+    write(UNIT_OUTPUT, '(A)') ''
+    write(UNIT_OUTPUT, '(A,I3)')    'Number of shock inside contour, N =      ', NSHOCK
+    write(UNIT_OUTPUT, '(A,F15.9)') 'Body aft location,              X =      ', XD_LOC
+    write(UNIT_OUTPUT, '(A,F15.9)') 'Drag due to body,               CD_body =', CDBODY
+    write(UNIT_OUTPUT, '(A,F15.9)') 'Drag due to shock,              CD_wave =', CDWAVE
+    write(UNIT_OUTPUT, '(A,F15.9)') 'Drag by momentum integral,      CD_int = ', CDC
+    write(UNIT_OUTPUT, '(A,F15.9)') 'Total drag (CD_int + CD_wave),  CD =     ', CD
+    write(UNIT_OUTPUT, '(A)') ''
 
     if (NSHOCK > 0 .and. LPRT2 == 0) then
-      write(UNIT_SUMMARY, '("NOTE - All shocks contained within contour, CD_wave equals total wave drag")')
+      write(UNIT_OUTPUT, '("NOTE - All shocks contained within contour, CD_wave equals total wave drag")')
     end if
     
     if (NSHOCK > 0 .and. LPRT2 == 1) then
-      write(UNIT_SUMMARY, '("NOTE - One or more shocks extend outside of contour, CD_wave does not equal total wave drag")')
+      write(UNIT_OUTPUT, '("NOTE - One or more shocks extend outside of contour, CD_wave does not equal total wave drag")')
     end if
+
+    write(UNIT_SUMMARY, '(A,I3)')    'Number of shock inside contour, N =      ', NSHOCK
+    write(UNIT_SUMMARY, '(A,F15.9)') 'Body aft location,              X =      ', XD_LOC
+    write(UNIT_SUMMARY, '(A,F15.9)') 'Drag due to body,               CD_body =', CDBODY
+    write(UNIT_SUMMARY, '(A,F15.9)') 'Drag due to shock,              CD_wave =', CDWAVE
+    write(UNIT_SUMMARY, '(A,F15.9)') 'Drag by momentum integral,      CD_int = ', CDC
+    write(UNIT_SUMMARY, '(A,F15.9)') 'Total drag (CD_int + CD_wave),  CD =     ', CD
 
   end subroutine CDCOLE
 
@@ -1129,7 +1118,8 @@ contains
     
     ! Write header for first shock wave only (format 1001 equivalent)
     if (NSHOCK == 1) then
-      write(UNIT_OUTPUT,'(A)') char(12) // 'INVISCID WAKE PROFILES FOR INDIVIDUAL SHOCK WAVES WITHIN MOMENTUM CONTOUR'
+      write(UNIT_OUTPUT, '(A)') '0'
+      write(UNIT_OUTPUT,'(A)') ' INVISCID WAKE PROFILES FOR INDIVIDUAL SHOCK WAVES WITHIN MOMENTUM CONTOUR'
     end if
     
     ! Write shock information (format 1002 equivalent)
@@ -1149,7 +1139,7 @@ contains
     ! Write footer if shock extends outside contour (format 1004 equivalent)
     if (LPRT1 == 1) then
       write(UNIT_OUTPUT,'(A)') ''  ! blank line for 0 carriage control
-      write(UNIT_OUTPUT,'(A)') 'SHOCK WAVE EXTENDS OUTSIDE CONTOUR'
+      write(UNIT_OUTPUT,'(A)') ' SHOCK WAVE EXTENDS OUTSIDE CONTOUR'
       write(UNIT_OUTPUT,'(A)') ' PRINTOUT OF SHOCK LOSSES ARE NOT AVAILABLE FOR REST OF SHOCK'
     end if
   end subroutine PRTSK

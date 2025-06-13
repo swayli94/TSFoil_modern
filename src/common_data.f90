@@ -48,9 +48,8 @@ module common_data
   public :: EMU, POLD, DCIRC, OUTERR  ! Missing variables from COM18
   public :: BIGRL, IRL, JRL  ! COM32: maximum residual tracking variables
   public :: initialize_common
-  public :: UNIT_INPUT, UNIT_OUTPUT, UNIT_RESTART
-  public :: UNIT_DLAOUT_INPUT, UNIT_DLAOUT_OUTPUT  ! DLAOUT input and output files
-  public :: UNIT_SUMMARY, UNIT_CPXS, UNIT_CNVG, UNIT_MESH, UNIT_FIELD
+  public :: UNIT_INPUT, UNIT_OUTPUT
+  public :: UNIT_SUMMARY, UNIT_CPXS, UNIT_MESH, UNIT_FIELD
   
   ! Mesh indices (from COMMON /COM1/)
 
@@ -219,16 +218,11 @@ module common_data
   integer :: NVWPRT(2) ! Number of viscous wedge prints
   integer :: NISHK     ! Number of shocks
   
-  ! File unit numbers for different output files
-  integer, parameter :: UNIT_RESTART = 7        ! Restart file
-  integer, parameter :: UNIT_DLAOUT_INPUT = 5   ! DLAOUT input file
-  integer, parameter :: UNIT_DLAOUT_OUTPUT = 10 ! DLAOUT output file
-  
+  ! File unit numbers for different output files  
   integer, parameter :: UNIT_INPUT = 2          ! Input file
   integer, parameter :: UNIT_OUTPUT = 15        ! tsfoil2.out (Main output file with comprehensive results)
   integer, parameter :: UNIT_SUMMARY = 16       ! smry.out (Summary file with key results)
   integer, parameter :: UNIT_CPXS = 17          ! cpxs.out (Pressure coefficient vs. X-coordinate data)
-  integer, parameter :: UNIT_CNVG = 19          ! cnvg.out (Convergence history file)
   integer, parameter :: UNIT_MESH = 20          ! mesh.dat (Mesh coordinate data)
   integer, parameter :: UNIT_FIELD = 11         ! field.dat (Pressure coefficient and Mach number field data)
 

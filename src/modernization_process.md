@@ -110,7 +110,7 @@ tsfoil_modern/
    | `SCALE` | Variable scaling | ✅ |
    | `ECHINP` | Input echoing | UNUSED |
    | `PRINT` | Main output driver | ✅ |
-   | `PRINT1` | Body Cp and Mach output | SIMPLIFIED |
+   | `PRINT1` | Body Cp and Mach output | Replaced by `CHECK_SHOCK_AND_MACH` |
    | `PRTFLD` | Field output | UNUSED |
    | `PRTMC` | Flow type mapping | Replaced by `OUTPUT_FIELD` |
    | `PRTSK` | Shock wave output | ✅ |

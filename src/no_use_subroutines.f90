@@ -1688,5 +1688,87 @@ contains
     write(UNIT_OUTPUT,'(A,I0,A)') 'Field data written for ', JL, ' J-lines'
   end subroutine PRTFLD
 
+  ! Print Cp and Mach along body and build plot arrays
+  ! Prints pressure coefficient and Mach number on Y=0 line, and plots CP along side of print
+  ! UNUSED: Replaced by PRINT in io_module.f90
+  subroutine PRINT1()
+    use common_data
+    use math_module, only: PX, EMACH1, LIFT, PITCH
+    implicit none
+    
+    ! Local variables exactly matching original - renamed to avoid conflicts
+    integer :: I_P1, NCOL_P1, NCOLS_P1, IEM
+    real :: CL_val, CM, CPMIN_P1, CPMAX_P1, CPLARG_P1, UNPCOL_P1, COL_P1
+    real :: UL_P1, UU_P1, CJ01, CJ02
+    real :: EM1L(N_MESH_POINTS), EM1U(N_MESH_POINTS)
+    
+    ! Compute coefficients exactly like original
+    CL_val = LIFT(CLFACT)
+    CM = PITCH(CMFACT)
+    CPMIN_P1 = 1.0E37
+    CPMAX_P1 = -CPMIN_P1
+    IEM = 0
+    CJ01 = -Y(JLOW)/(Y(JUP)-Y(JLOW))
+    CJ02 = Y(JUP)/(Y(JUP)-Y(JLOW))
+    
+    ! Main computation loop exactly matching original logic
+    do I_P1 = IMIN, IMAX
+      UL_P1 = CJLOW*PX(I_P1,JLOW) - CJLOW1*PX(I_P1,JLOW-1)
+      if (I_P1 > ITE) UL_P1 = CJ01*PX(I_P1,JUP) + CJ02*PX(I_P1,JLOW)
+      if (I_P1 < ILE) UL_P1 = CJ01*PX(I_P1,JUP) + CJ02*PX(I_P1,JLOW)
+      CPL(I_P1) = -2.0 * UL_P1 * CPFACT
+      EM1L(I_P1) = EMACH1(UL_P1)
+      if (EM1L(I_P1) > 1.3) IEM = 1
+      
+      UU_P1 = CJUP*PX(I_P1,JUP) - CJUP1*PX(I_P1,JUP+1)
+      if (I_P1 > ITE) UU_P1 = UL_P1
+      if (I_P1 < ILE) UU_P1 = UL_P1
+      CPU(I_P1) = -2.0 * UU_P1 * CPFACT
+      EM1U(I_P1) = EMACH1(UU_P1)
+      if (EM1U(I_P1) > 1.3) IEM = 1
+      
+      CPMAX_P1 = max(CPMAX_P1, CPU(I_P1), CPL(I_P1))
+      CPMIN_P1 = min(CPMIN_P1, CPU(I_P1), CPL(I_P1))
+    end do
+    
+    CPLARG_P1 = max(CPMAX_P1, abs(CPMIN_P1))
+    UNPCOL_P1 = CPLARG_P1 / 29.0
+    
+    ! Locate CP* for printer plot exactly like original
+    COL_P1 = -CPSTAR / UNPCOL_P1
+    NCOL_P1 = sign(int(abs(COL_P1) + 0.5), nint(COL_P1))
+    NCOLS_P1 = NCOL_P1 + 30
+      ! Print single variables using exact original format
+    write(UNIT_OUTPUT, '(A, /, 2X, A)') &
+          '1 FORCE COEFFICIENTS, PRESSURE COEFFICIENT, AND MACH NUMBER', &
+          '(OR SIMILARITY PARAMETER) ON BODY AND DIVIDING STREAM LINE.'
+    write(UNIT_OUTPUT, '(20X,11H FINAL MESH)')
+    
+    write(UNIT_SUMMARY, '(1H0,9X,4HCL =,F16.12/10X,4HCM =,F16.12/9X,5HCP* =,F16.12)') CL_val, CM, CPSTAR
+    
+    ! Check for detached shock - exactly like original with GO TO 70 logic
+    if (CPL(IMIN) < CPSTAR .and. CPL(IMIN+1) > CPSTAR) then
+      write(UNIT_OUTPUT, '(A, //, A)') '0', &
+           ' DETACHED SHOCK WAVE UPSTREAM OF X-MESH,SOLUTION TERMINATED.'
+      return
+    end if
+    
+    ! Mach number warning exactly like original
+    if (IEM == 1) then
+      if (PHYS) then
+        write(UNIT_OUTPUT, '(A, /, A, /, A, A)') &
+              '0***** CAUTION *****', &
+              ' MAXIMUM MACH NUMBER EXCEEDS 1.3', &
+              ' SHOCK JUMPS IN ERROR IF UPSTREAM NORMAL MACH NUMBER GREATER T', &
+              'HAN 1.3'
+      end if
+    end if
+      
+    ! Output airfoil surface data
+    call OUTPUT_CP_MACH_XLINE(CL_val, CM, EM1L, EM1U)
+
+    call OUTPUT_MESH()
+    
+  end subroutine PRINT1
 
 end module no_use_subroutines
