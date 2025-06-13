@@ -10,7 +10,7 @@ contains
   ! Build analytical X and Y mesh points
   subroutine AYMESH()
     use common_data, only: XIN, YIN, IMAXI, JMAXI, BCTYPE
-    use common_data, only: HALFPI, PI
+    use common_data, only: HALFPI, PI, N_MESH_POINTS
     use math_module, only: ARF
     implicit none
     integer :: I, IMA, IM2, IM2P1, JM2, JMA, J
@@ -23,7 +23,7 @@ contains
     real :: BT2,BHT2,BHT3,T12,BT12,TBT2
     real :: BT3,BHT4,BHT5,BHT6,XHT3,T3
     real, dimension(401) :: XH, BXH
-    real, dimension(100) :: BX
+    real, dimension(N_MESH_POINTS) :: BX
 
     ! Initialize constants
     A0 = 0.225; A1 = 1.4; A2 = 1.6; A3 = 0.6188
@@ -128,7 +128,9 @@ contains
 
   ! Ensure odd/even mesh counts before/after tail and slit
   subroutine CKMESH()
-    use common_data, only: XIN, YIN, IMIN, IMAX, ITE, JMIN, JMAX, JLOW, JUP, ICUT, IREF, UNIT_OUTPUT
+    use common_data, only: XIN, YIN, IMIN, IMAX, ITE
+    use common_data, only: JMIN, JMAX, JLOW, JUP, ICUT, IREF
+    use common_data, only: UNIT_OUTPUT, N_MESH_POINTS
     implicit none
     integer :: I, LP, L, J
 
@@ -138,10 +140,11 @@ contains
       return
     end if    
     
-    ! Test to be sure that adjusting the number of points won't make IMAX or JMAX larger than 100
-    if (IMAX > 98 .or. JMAX > 98) then
-      write(UNIT_OUTPUT, '(A)') &
-        'THE MESH CANNOT BE ADJUSTED FOR CUTOUT, BECAUSE IMAX OR JMAX IS TOO CLOSE TO THE LIMIT OF 100.'
+    ! Test to be sure that adjusting the number of points won't make IMAX or JMAX larger than N_MESH_POINTS
+    if (IMAX > N_MESH_POINTS-2 .or. JMAX > N_MESH_POINTS-2) then
+      write(UNIT_OUTPUT, '(A, I5)') &
+        'THE MESH CANNOT BE ADJUSTED FOR CUTOUT, BECAUSE IMAX OR JMAX IS TOO CLOSE TO THE LIMIT OF N_MESH_POINTS.', &
+        N_MESH_POINTS
       write(UNIT_OUTPUT, '(A)') 'IREF WAS SET TO  0'
       IREF = -1
       return
@@ -277,11 +280,11 @@ contains
   ! Refine mesh and interpolate solution onto finer grid
   subroutine REFINE()
     use common_data, only: XIN, YIN, XMID, YMID, P, X, Y, IMIN, IMAX, JMIN, JMAX, ILE, ITE, JLOW, JUP, IREF
-    use common_data, only: NWDGE, WSLP
+    use common_data, only: NWDGE, WSLP, N_MESH_POINTS
     implicit none
     integer :: I, J, K, JMAXO_LOCAL, JE, JST, IM2, JM2, JL
     integer :: ILEO, INC, M, ISTEP, ISTRT, IEND, IM, IMM
-    real :: PT(100)
+    real :: PT(N_MESH_POINTS)
     real :: D1, D2, CL1, CL2, CU1, CU2, RATIO
     real :: XLEO_LOCAL  ! Must be REAL to store X-coordinate
 
@@ -463,11 +466,19 @@ contains
   end subroutine ISLIT
     
   ! Compute JLOW and JUP for mesh Y array
+  ! JSLIT computes:
+  ! 1.) JLOW = index of first point where Y >= 0.0
+  ! 2.) JUP = index of first point where Y > 0.0
+  ! Called by - CKMESH, CUTOUT, REFINE
   subroutine JSLIT(Y_MESH)
     use common_data, only: JMIN, JLOW, JUP
     implicit none
     real, intent(in) :: Y_MESH(:)
     integer :: j
+
+    ! Y_MESH is the Y-mesh array, size(Y_MESH) = JMAXI
+    ! JMIN is the minimum index of the Y-mesh array
+    ! JMAXI is the maximum index of the Y-mesh array
 
     j = JMIN - 1
     do

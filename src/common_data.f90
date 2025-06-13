@@ -7,8 +7,10 @@ module common_data
   
   ! Mesh size parameter - change this to adjust mesh dimensions
   integer, parameter :: N_MESH_POINTS = 100
+  integer, parameter :: NMP_plus2 = N_MESH_POINTS + 2  ! Number of mesh points + 2
+  integer, parameter :: NMP_plus1 = N_MESH_POINTS + 1  ! Number of mesh points + 1
   
-  public :: N_MESH_POINTS  ! Make it public so other modules can use it
+  public :: N_MESH_POINTS, NMP_plus2, NMP_plus1
   public :: IMIN, IMAX, IUP, IDOWN, ILE, ITE, JMIN, JMAX, JUP, JLOW, JTOP, JBOT, J1, J2
   public :: AK, ALPHA, DUB, GAM1, RTK, PHYS
   public :: IREF, ICUT, KSTEP, ABORT1
@@ -51,17 +53,18 @@ module common_data
   public :: UNIT_SUMMARY, UNIT_CPXS, UNIT_MMAP, UNIT_CNVG, UNIT_MESH, UNIT_CPMP
   
   ! Mesh indices (from COMMON /COM1/)
-  integer :: IMIN, IMAX       ! grid i-range
+
   integer :: IUP, IDOWN       ! upstream/downstream indices
   integer :: ILE, ITE         ! leading/trailing edge i-indices
-  integer :: JMIN, JMAX       ! grid j-range
-  integer :: JUP, JLOW        ! upper/lower surface j-indices
+  
+  integer :: JUP              ! upper surface j-indices, index of first point where Y > 0.0 (calculated by JSLIT)
+  integer :: JLOW             ! lower surface j-indices, JLOW = JUP - 1 (calculated by JSLIT)
   integer :: JTOP, JBOT       ! far-field top/bottom j-indices
   integer :: J1, J2           ! auxiliary indices
 
   ! Main solution arrays
-  real :: P(N_MESH_POINTS+2, N_MESH_POINTS+1)    ! Potential solution array
-  real :: X(N_MESH_POINTS+2), Y(N_MESH_POINTS+2) ! Coordinate arrays, room for extra points
+  real :: P(NMP_plus2, NMP_plus1)    ! Potential solution array
+  real :: X(NMP_plus2), Y(NMP_plus2) ! Coordinate arrays, room for extra points
 
   ! Flow parameters (from COMMON /COM2/ and logical PHYS)
   real :: AK       ! freestream similarity parameter
@@ -78,9 +81,13 @@ module common_data
   logical :: ABORT1 ! input abort flag
 
   ! Analytical mesh arrays (from COMMON /COM4/)
-  real :: XIN(N_MESH_POINTS+2)  ! mesh x-coordinates, room for 2 extra points in CKMESH
-  real :: YIN(N_MESH_POINTS+2)  ! mesh y-coordinates, room for 2 extra points in CKMESH
+  real :: XIN(NMP_plus2)  ! mesh x-coordinates, room for 2 extra points in CKMESH
+  real :: YIN(NMP_plus2)  ! mesh y-coordinates, room for 2 extra points in CKMESH
   logical :: AMESH              ! use analytical mesh
+
+  integer :: IMIN, IMAX       ! grid i-range
+  integer :: JMIN, JMAX       ! grid j-range
+  integer :: IMAXI, JMAXI  ! User-input maximum number of streamwise (X-direction) and spanwise (Y-direction) grid points
 
   ! COM5: mesh derivative arrays
   real :: XDIFF(N_MESH_POINTS), YDIFF(N_MESH_POINTS)
@@ -118,7 +125,7 @@ module common_data
   
   ! COM11: restart and case storage
   real :: ALPHAO, CLOLD, DELTAO, DUBO, EMACHO, VOLO
-  integer :: IMINO, IMAXO, IMAXI, JMINO, JMAXO, JMAXI
+  integer :: IMINO, IMAXO, JMINO, JMAXO
   logical :: PSAVE
   integer :: PSTART
   character(len=4) :: TITLE(20), TITLEO(20)
@@ -250,7 +257,7 @@ contains
     IDOWN = IMAX - 1
     ILE = IMIN + 5  ! Safe default
     ITE = IMAX - 5  ! Safe default
-    JUP = (JMAX + JMIN) / 2 + 1  ! Safe default above center
+    JUP = (JMAX + JMIN) / 2 + 1   ! Safe default above center
     JLOW = (JMAX + JMIN) / 2 - 1  ! Safe default below center
     JTOP = JMAX - 1
     JBOT = JMIN + 1
@@ -304,14 +311,14 @@ contains
     WE(3) = 1.95
     
     ! Grid parameters (from BLOCK DATA)
-    IMAXI = 77
-    JMXF = 56
-    MAXIT = 500
-    NL = 75
-    NU = N_MESH_POINTS
-    IPRTER = 10
-    JMAXI = 64
-    JMXT = 48
+    IMAXI = 77  ! Maximum number of streamwise (X-direction) grid points
+    JMXF = 56  ! Maximum number of spanwise (Y-direction) grid points
+    MAXIT = 500  ! Maximum number of iterations
+    NL = 75  ! Number of lower surface grid points
+    NU = N_MESH_POINTS  ! Number of upper surface grid points
+    IPRTER = 10  ! Print interval for convergence history
+    JMAXI = 64  ! Maximum number of spanwise (Y-direction) grid points
+    JMXT = 48  ! Maximum number of streamwise (X-direction) grid points
     
     ! Logical flags (from BLOCK DATA)
     PHYS = .true.

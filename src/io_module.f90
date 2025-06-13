@@ -64,31 +64,22 @@ contains
     character(len=4), parameter :: DONE = 'FINI'  ! Declare DONE to match original exactly
     integer :: J_VAR, IM1, JM1, IDX, JDX
     real :: TERM, HTM, HTP, YS, YE, TIME1, TIME2, ELPTM
-    logical, save :: first_call = .true.
     character(len=100) :: IN_FILENAME
     integer :: ios
     
-    ! Open output files and handle input file on first call only  
-    if (first_call) then
+    ! Open output files and handle input file
+    ! Handle command line argument for input file (match original exactly)
+    call get_command_argument(1, IN_FILENAME)
 
-      ! Handle command line argument for input file (match original exactly)
-      call get_command_argument(1, IN_FILENAME)
-
-      if (IN_FILENAME == '') then
-        IN_FILENAME = 'tsfoil.inp'  ! Default input file name
-      else
-        write(*, '(A)') 'Using input file: ' // trim(IN_FILENAME)
-      end if
-      
-      open(unit=UNIT_INPUT, file=trim(IN_FILENAME), status='old')
-      
-      call open_output_files()
-      
-      ! Note: ECHINP call removed - should be called from main program if desired
-      ! like in original (where it was commented out)
-      first_call = .false.
-
+    if (IN_FILENAME == '') then
+      IN_FILENAME = 'tsfoil.inp'  ! Default input file name
+    else
+      write(*, '(A)') 'Using input file: ' // trim(IN_FILENAME)
     end if
+    
+    open(unit=UNIT_INPUT, file=trim(IN_FILENAME), status='old')
+    
+    call open_output_files()
     
     TIME1 = 0.0
     TIME2 = 0.0
@@ -211,7 +202,7 @@ contains
     JM1 = JMAX - 1
     
     ! Check array bounds (any call to INPERR causes message to be printed and execution stopped)
-    if (IMAXI > 100 .or. JMAXI > 100) call INPERR(1)
+    if (IMAXI > N_MESH_POINTS .or. JMAXI > N_MESH_POINTS) call INPERR(1)
     
     ! Check input mesh for monotonically increasing values
     do IDX = IMIN, IM1
@@ -511,7 +502,7 @@ contains
     integer :: I_P1, K_P1, NCOL_P1, NCOLS_P1, NCOLU_P1, NCOLL_P1, IEM, KT_P1, IPLOT_P1
     real :: CL_val, CM, CPMIN_P1, CPMAX_P1, CPLARG_P1, UNPCOL_P1, COL_P1
     real :: UL_P1, UU_P1, CJ01, CJ02
-    real :: EM1L(100), EM1U(100), YM(100)
+    real :: EM1L(N_MESH_POINTS), EM1U(N_MESH_POINTS), YM(N_MESH_POINTS)
     character(len=1) :: LINE1_P1(60)
     character(len=2) :: TMAC_P1(2)
     character(len=1), parameter :: IB_P1 = ' ', IL_P1 = 'L', IU_P1 = 'U', IS_P1 = '*', IBB_P1 = 'B'
@@ -767,25 +758,25 @@ contains
     character(len=1), parameter :: ch_ell = '-'    ! Elliptic (subsonic)
     character(len=1), parameter :: ch_blank = ' '  ! Blank
 
-    ! Print header (matches original format 100)
+    ! Print header
     write(UNIT_OUTPUT, '(A,/,28X,A,/,28X,A,/,28X,A,//)')  &
       '1 FLOW AT EACH GRID POINT.  P PARABOLIC',   &
       'H HYPERBOLIC',                              &
       'S SHOCK',                                   &
       '- ELLIPTIC'
 
-    ! Initialize IPC array (matches original loop 5)
+    ! Initialize IPC array
     do I = 1, 50, 2
       IPC(I) = ch_blank
       IPC(I+1) = ch_blank
     end do
 
-    ! Initialize VT array (matches original loop 10)  
+    ! Initialize VT array
     do J = JMIN, JMAX
       VT(J,1) = C1(2)
     end do
 
-    ! Main classification loop (matches original loop 60)
+    ! Main classification loop
     do K = JMIN, JMAX
       J = JMAX - K + 1
       do I = IUP, IDOWN
@@ -812,7 +803,7 @@ contains
         end if
       end do
       
-      ! Write line (matches original format 110)
+      ! Write line
       write(UNIT_OUTPUT, '(10X,I3,5X,100A1)') J, (IPC(I), I=IUP, IDOWN)
     end do
     
@@ -880,7 +871,8 @@ contains
     character(len=1), parameter :: IU = 'U'    ! Upper surface  
     character(len=1), parameter :: IS = '*'    ! CP* reference line
     character(len=1), parameter :: IBB = 'B'   ! Both surfaces same CP
-    real :: THH, PORF, CPMIN, CPMAX, CPT, CPLW(100), CPUW(100), VLW(100), VUW(100)
+    real :: THH, PORF, CPMIN, CPMAX, CPT
+    real :: CPLW(N_MESH_POINTS), CPUW(N_MESH_POINTS), VLW(N_MESH_POINTS), VUW(N_MESH_POINTS)
     real :: COL, CPLARG, UNPCOL
     character(len=1) :: LINE1(60)
     character(len=4) :: BCT(15)
@@ -1072,7 +1064,7 @@ contains
     implicit none
     integer :: I_LOOP, J_LOOP, K_LOOP, INEW, JNEW, ISTEP, JSTEP
     real :: TEST, XP_LOCAL, YP_LOCAL, X1, X2, Y1, Y2, P1, P2
-    real :: PT(100)  ! Temporary array for interpolation, matches original COM30
+    real :: PT(N_MESH_POINTS)  ! Temporary array for interpolation, matches original COM30
     logical :: x_meshes_same, y_meshes_same
     
     ! Branch to appropriate location using modern select case
@@ -1080,8 +1072,8 @@ contains
     case (1)
       ! PSTART = 1
       ! P SET TO ZERO
-      do I_LOOP = 1, 101
-        do J_LOOP = 1, 102
+      do I_LOOP = 1, N_MESH_POINTS + 1
+        do J_LOOP = 1, N_MESH_POINTS + 2
           P(J_LOOP, I_LOOP) = 0.0
         end do
       end do
@@ -1577,15 +1569,15 @@ contains
 
   ! Fatal error in input - write message and stop
   ! CALLED BY - READIN, SCALE
-  subroutine INPERR(I)
+  subroutine INPERR(I_ERROR_CODE)
     use common_data, only: UNIT_OUTPUT
     implicit none
-    integer, intent(in) :: I
+    integer, intent(in) :: I_ERROR_CODE
     
-    select case (I)
+    select case (I_ERROR_CODE)
     case (1)
       write(UNIT_OUTPUT, '(A)') ' '
-      write(UNIT_OUTPUT, '(5X,A)') 'IMAX OR JMAX IS GREATER THAN 100,NOT ALLOWED.'
+      write(UNIT_OUTPUT, '(5X,A)') 'IMAX OR JMAX IS GREATER THAN N_MESH_POINTS, NOT ALLOWED.'
     case (2)
       write(UNIT_OUTPUT, '(A)') ' '
       write(UNIT_OUTPUT, '(5X,A)') 'X MESH POINTS NOT MONOTONIC INCREASING.'
@@ -1607,6 +1599,9 @@ contains
     case (8)
       write(UNIT_OUTPUT, '(A)') ' '
       write(UNIT_OUTPUT, '(5X,A)') 'MACH NUMBER IS NOT LESS THAN 1.0 FOR VISCOUS WEDGE INCLUSION'
+    case default
+      write(UNIT_OUTPUT, '(A)') ' '
+      write(UNIT_OUTPUT, '(5X,A)') 'UNKNOWN ERROR CODE.'
     end select
     
     stop
@@ -1615,12 +1610,13 @@ contains
   ! FIXPLT - Sets up arrays for CPPLOT subroutine
   subroutine FIXPLT()
     use common_data, only: IMIN, IMAX, CPFACT, CPSTAR, CPU, CPL, X
+    use common_data, only: NMP_plus1
     implicit none
     
     ! Local variables matching original
     real :: YMX, YMN, QCP, QC1, QC2
     integer :: K, I, IMP
-    real :: CPUP(101), CPLO(101), CPS(101), XP(101)
+    real :: CPUP(NMP_plus1), CPLO(NMP_plus1), CPS(NMP_plus1), XP(NMP_plus1)
     
     YMX = 5.0 * CPFACT
     YMN = -5.0 * CPFACT
@@ -1661,11 +1657,12 @@ contains
   ! CALLED BY - FIXPLT.
   subroutine CPPLOT(X_ARR, Y_ARR, Z_ARR, W_ARR, NP)
     use common_data, only: AMESH, UNIT_OUTPUT
+    use common_data, only: NMP_plus1
     implicit none
     
     ! Arguments
     integer, intent(in) :: NP
-    real, intent(in) :: X_ARR(101), Y_ARR(101), Z_ARR(101), W_ARR(101)
+    real, intent(in) :: X_ARR(NMP_plus1), Y_ARR(NMP_plus1), Z_ARR(NMP_plus1), W_ARR(NMP_plus1)
     
     ! Local variables exactly matching original
     integer :: M(120), ISYM(8)
@@ -1785,24 +1782,26 @@ contains
   subroutine M1LINE()
     use common_data, only: X, Y, IMIN, IMAX, JMIN, JMAX, JLOW
     use common_data, only: AK, SONVEL, YFACT, BCTYPE
-    use common_data, only: UNIT_OUTPUT
+    use common_data, only: UNIT_OUTPUT, N_MESH_POINTS
     use math_module, only: PX
     implicit none
     
-    real :: XSLPRT(200), YSLPRT(200)
+    real :: XSLPRT(2*N_MESH_POINTS), YSLPRT(2*N_MESH_POINTS)
     real :: XSONIC(10)
     real :: YPR, PX1, PX2, RATIO
     real :: XMIN, XMAX, XINCR, YMIN, YMAX, YINCR
     real :: YM, YX
-    integer :: NPTS, KMIN, KMAX, JP, K, J, M, IMM, I, L, N
+    integer :: NPTS, J, M, I, L, N
     
-    NPTS = 0
-    KMIN = JMIN
-    KMAX = JMAX
-    JP = JMAX + JMIN
+    NPTS = 0  ! Number of sonic points
     
-    do K = KMIN, KMAX
-      J = JP - K
+    do J = JMAX, JMIN, -1
+
+      ! J is the index of the J-line (constant Y) in the mesh
+      ! M is the number of sonic points
+      ! I is the index of the current point in the X direction
+      ! N is the index of the current point in the X direction
+
       YPR = YFACT * Y(J)
       PX2 = PX(IMIN, J)
       M = 0
@@ -1810,8 +1809,8 @@ contains
         write(UNIT_OUTPUT, '(2X,"BODY LOCATION")')
       end if
       
-      IMM = IMIN + 1
-      do I = IMM, IMAX
+      do I = IMIN + 1, IMAX
+
         PX1 = PX2
         PX2 = PX(I, J)
         
@@ -1826,9 +1825,9 @@ contains
         NPTS = NPTS + 1
         XSLPRT(NPTS) = XSONIC(M)
         YSLPRT(NPTS) = YPR
-        if (NPTS >= 200) then
+        if (NPTS >= 2*N_MESH_POINTS) then
           write(UNIT_OUTPUT, '("0***** CAUTION *****",&
-           &" NUMBER OF SONIC POINTS EXCEEDED 200",&
+           &" NUMBER OF SONIC POINTS EXCEEDED 2*N_MESH_POINTS",&
            &" ARRAY DIMENSION EXCEEDED",&
            &" EXECUTION OF SUBROUTINE M1LINE TERMINATED")')
           return
@@ -1873,7 +1872,7 @@ contains
   ! This is a modified version of PRNPLT and XMAX, XINCR, YMAX, YINCR must be supplied.
   ! XMIN, and YMIN must also be supplied.
   ! Printer plot routine M. S. ITZKOWITZ MAY,1967
-  ! Plots the NPTS points given by X(I),Y(I) on a 51 X 101 grid using a total of 56 lines on
+  ! Plots the NPTS points given by X(I),Y(I) on a 51 X NMP_plus1 grid using a total of 56 lines on
   ! the printer. If either incremental step size is zero, the program exits.
   ! Neither of the input arrays are destroyed.
   ! Called by - M1LINE.

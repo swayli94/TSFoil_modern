@@ -22,7 +22,7 @@ program tsfoil_main
 
   ! Initialize data structures
   call initialize_common()
-  call initialize_spline(200)
+  call initialize_spline(N_MESH_POINTS*2)
 
   ! Call READIN to read one case - it handles termination internally with STOP
   write(*,'(A)') 'Reading input data...'

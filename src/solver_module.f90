@@ -115,13 +115,13 @@ contains
   end subroutine DIFCOE
 
   ! Define solution limits and apply body slope boundary conditions
+  ! SUBROUTINE SETBC sets the limits on range of I and J
+  ! for solution of the difference equations.
+  ! The body slope boundary condition at the current
+  ! X mesh points on the body are multiplied by mesh
+  ! spacing constants and entered into arrays FXUBC and
+  ! FXLBC for use in subroutine SYOR.
   subroutine SETBC(IJUMP)
-    ! SUBROUTINE SETBC sets the limits on range of I and J
-    ! for solution of the difference equations.
-    ! The body slope boundary condition at the current
-    ! X mesh points on the body are multiplied by mesh
-    ! spacing constants and entered into arrays FXUBC and
-    ! FXLBC for use in subroutine SYOR.
     use common_data, only: IMIN, IMAX, IUP, IDOWN, JMIN, JMAX, JTOP, JBOT, J1, J2
     use common_data, only: ILE, ITE, FXLBC, FXUBC, FXL, FXU
     use common_data, only: AK, ALPHA, BCTYPE, POR, IREF, KSTEP, IFOIL
@@ -176,12 +176,11 @@ contains
   end subroutine SETBC
 
   ! Apply boundary conditions on each i-line (upper/lower boundaries)
-  subroutine BCEND()
-    ! SUBROUTINE BCEND modifies the DIAG and RHS vectors
-    ! on each I line in the appropriate way to include the
-    ! boundary conditions at JBOT and JTOP.
-    ! Called by - SYOR.
-    
+  ! SUBROUTINE BCEND modifies the DIAG and RHS vectors
+  ! on each I line in the appropriate way to include the
+  ! boundary conditions at JBOT and JTOP.
+  ! Called by - SYOR.
+  subroutine BCEND()    
     use common_data, only: P, X, Y, IUP, IDOWN, &
                           JMIN, JMAX, JTOP, JBOT, &
                           AK, RTK, &

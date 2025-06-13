@@ -55,7 +55,8 @@ contains
 
     ! Ensure arrays are allocated
     if (.not. allocated(A) .or. .not. allocated(B)) then
-      call initialize_spline(max(N, 100))
+      write(*,*) 'Error: Spline arrays not allocated'
+      stop
     end if
 
     N1 = N - 2

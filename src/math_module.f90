@@ -299,11 +299,12 @@ contains
   ! Function PITCH computes airfoil pitching moment about X = XM, Y = 0
   function PITCH(CMFACT_in) result(result_pitch)
     use common_data, only: P, X, ILE, ITE, JUP, JLOW, CJUP, CJUP1, CJLOW, CJLOW1
+    use common_data, only: N_MESH_POINTS
     implicit none
     real, intent(in) :: CMFACT_in
     real :: result_pitch
     real :: XM, PTOP, PBOT, SUM
-    real :: XI(100), ARG(100)
+    real :: XI(N_MESH_POINTS), ARG(N_MESH_POINTS)
     integer :: K, I_loop
     
     ! Set XM to quarter chord
@@ -362,13 +363,14 @@ contains
     real :: ERROR, TEMP, Q, DALPHA
     integer :: I
     logical :: converged
+    integer :: MAX_ITERATIONS = 100
     
     ERROR = 0.00001
     
     ! Compute ALPHA0
     ALPHA0 = 0.0
     converged = .false.
-    do I = 1, 100
+    do I = 1, MAX_ITERATIONS
       TEMP = ALPHA0
       Q = F*TEMP - RTKPOR
       ALPHA0 = HALFPI - atan(Q)
@@ -385,7 +387,7 @@ contains
     ! Compute ALPHA1
     ALPHA1 = 0.0
     converged = .false.
-    do I = 1, 100
+    do I = 1, MAX_ITERATIONS
       TEMP = ALPHA1
       Q = F*(TEMP - PI) - RTKPOR
       ALPHA1 = HALFPI - atan(Q)
@@ -402,7 +404,7 @@ contains
     ! Compute ALPHA2
     ALPHA2 = 0.0
     converged = .false.
-    do I = 1, 100
+    do I = 1, MAX_ITERATIONS
       TEMP = ALPHA2
       Q = F*(TEMP - TWOPI) - RTKPOR
       ALPHA2 = HALFPI - atan(Q)
@@ -435,13 +437,14 @@ contains
     real :: ERROR, TEMP, Q, DBETA
     integer :: I
     logical :: converged
+    integer :: MAX_ITERATIONS = 100
     
     ERROR = 0.00001
     
     ! Calculate BETA0
     BETA0 = 0.0
     converged = .false.
-    do I = 1, 100
+    do I = 1, MAX_ITERATIONS
       TEMP = BETA0
       Q = -F*TEMP + RTKPOR
       BETA0 = atan(Q)
@@ -458,7 +461,7 @@ contains
     ! Calculate BETA1  
     BETA1 = 0.0
     converged = .false.
-    do I = 1, 100
+    do I = 1, MAX_ITERATIONS
       TEMP = BETA1
       Q = -F*(TEMP + PI) + RTKPOR
       BETA1 = atan(Q)
@@ -475,7 +478,7 @@ contains
     ! Calculate BETA2
     BETA2 = 0.0
     converged = .false.
-    do I = 1, 100
+    do I = 1, MAX_ITERATIONS
       TEMP = BETA2
       Q = -F*(TEMP - PI) + RTKPOR
       BETA2 = atan(Q)
@@ -707,7 +710,7 @@ contains
     use common_data
     implicit none
     
-    integer :: K, J, I, MM(100)
+    integer :: K, J, I, MM(N_MESH_POINTS)
     real :: U, EM
     character(len=1) :: IJC
     character(len=1), parameter :: IB = ' ', IP = '+', IM = '-', IL = 'L', IT = 'T'
