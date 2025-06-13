@@ -45,8 +45,8 @@ program tsfoil_main
   write(*,'(A)') 'Computing airfoil geometry...'
   call BODY()
   
-  ! CUTOUT: Remove mesh points for initial coarse mesh solution
-  write(*,'(A)') 'Setting up coarse mesh...'
+  ! CUTOUT: ! Initial mesh setup: original mesh (IREF=-1) or create coarse mesh (IREF>=0)
+  write(*,'(A)') 'Setting up mesh (or coarse mesh)...'
   call CUTOUT()
   
   ! GUESSP: Initialize potential array P

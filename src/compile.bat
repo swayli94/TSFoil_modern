@@ -76,10 +76,10 @@ echo Compilation successful!
 echo Executable: tsfoil_modern.exe
 echo.
 echo Compilation modes available:
-echo   compile_with_fpe.bat             (default - minimal FPE trapping, original-like)
-echo   compile_with_fpe.bat normal      (trap critical exceptions)
-echo   compile_with_fpe.bat debug       (debug mode with core dumps)
-echo   compile_with_fpe.bat none        (no FPE trapping at all)
+echo   compile.bat             (default - minimal FPE trapping, original-like)
+echo   compile.bat normal      (trap critical exceptions)
+echo   compile.bat debug       (debug mode with core dumps)
+echo   compile.bat none        (no FPE trapping at all)
 goto end
 
 :error

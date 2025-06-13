@@ -64,9 +64,9 @@ module common_data
 
   ! Main solution arrays
   real :: P(NMP_plus2, NMP_plus1)    ! Potential solution array
-  real :: X(NMP_plus2), Y(NMP_plus2) ! Coordinate arrays, room for extra points
 
-  ! Flow parameters (from COMMON /COM2/ and logical PHYS)
+
+  ! Flow parameters (from /COM2/)
   real :: AK       ! freestream similarity parameter
   real :: ALPHA    ! angle of attack
   real :: DUB      ! doublet strength
@@ -74,16 +74,21 @@ module common_data
   real :: RTK      ! sqrt(gamma)
   logical :: PHYS  ! physical (True) vs similarity (False)
 
-  ! Control flags and refinement (from COMMON /COM3/)
+  ! Control flags and refinement (from /COM3/)
   integer :: IREF   ! mesh refinement flag
   integer :: ICUT   ! number of coarse refinements
   integer :: KSTEP  ! SOR sweep step size
   logical :: ABORT1 ! input abort flag
 
-  ! Analytical mesh arrays (from COMMON /COM4/)
-  real :: XIN(NMP_plus2)  ! mesh x-coordinates, room for 2 extra points in CKMESH
-  real :: YIN(NMP_plus2)  ! mesh y-coordinates, room for 2 extra points in CKMESH
+  ! Analytical mesh coordinate arrays (from /COM4/)
   logical :: AMESH        ! use analytical mesh
+  real :: XIN(NMP_plus2), YIN(NMP_plus2)  ! room for 2 extra points in CKMESH
+  
+  ! Mesh coordinate arrays
+  real :: X(NMP_plus2), Y(NMP_plus2) ! room for extra points
+
+  ! Coarse mesh coordinate arrays: midpoint (from /COM20/)
+  real :: XMID(N_MESH_POINTS), YMID(N_MESH_POINTS)
 
   integer :: IMIN, IMAX   ! grid i-range
   integer :: JMIN, JMAX   ! grid j-range
@@ -168,10 +173,7 @@ module common_data
   
   ! COM19: tridiagonal solver arrays
   real :: DIAG(N_MESH_POINTS), RHS(N_MESH_POINTS), SUB(N_MESH_POINTS), SUP(N_MESH_POINTS)
-  
-  ! COM20: mesh midpoint storage
-  real :: XMID(N_MESH_POINTS), YMID(N_MESH_POINTS)
-  
+    
   ! COM22: central differencing coefficients
   real :: CXC(N_MESH_POINTS), CXL(N_MESH_POINTS), CXR(N_MESH_POINTS)
   real :: CXXC(N_MESH_POINTS), CXXL(N_MESH_POINTS), CXXR(N_MESH_POINTS)
@@ -324,7 +326,7 @@ contains
     FCR = .true.
     KUTTA = .true.
     ABORT1 = .false.
-    AMESH = .true. ! Automatic mesh generation
+    AMESH = .false. ! Automatic mesh generation
     
     ! Boundary condition parameters (from BLOCK DATA)
     BCFOIL = 3

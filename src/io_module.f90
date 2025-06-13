@@ -53,12 +53,12 @@ contains
     implicit none    
     character(len=4), parameter :: DONE = 'FINI'  ! Declare DONE to match original exactly
     integer :: J_VAR, IM1, JM1, IDX, JDX
-    real :: TERM, HTM, HTP, YS, YE, TIME1, TIME2, ELPTM
+    real :: TERM, HTM, HTP, YS, YE
     character(len=100) :: IN_FILENAME
     integer :: ios
     
-    ! Open output files and handle input file
-    ! Handle command line argument for input file (match original exactly)
+    
+    ! Handle command line argument for input file
     call get_command_argument(1, IN_FILENAME)
 
     if (IN_FILENAME == '') then
@@ -69,83 +69,28 @@ contains
     
     open(unit=UNIT_INPUT, file=trim(IN_FILENAME), status='old')
     
+    ! Open output files
     call open_output_files()
     
-    TIME1 = 0.0
-    TIME2 = 0.0
-    
-    ! TIME2 = get_time()  ! Would need system-specific timing
-    ELPTM = TIME2 - TIME1
-    if (ELPTM >= 0.01) then
-      write(UNIT_OUTPUT, '(25H0  TIME TO RUN CASE WAS  ,F6.2,9H SECONDS.)') ELPTM
-    end if
-    
-    ! Read title card for this case
+    ! Read title card
     read(UNIT_INPUT, '(20A4)', iostat=ios) TITLE
-    
-    ! Handle end-of-file or read error
     if (ios /= 0) then
-        if (ios < 0) then
-            ! End of file reached
-            write(UNIT_OUTPUT, '(A)') 'End of input file reached. Program terminated.'
-        else
-            ! Read error
-            write(UNIT_OUTPUT, '(A,I0)') 'Error reading title card. IOSTAT = ', ios
-        end if
+        write(UNIT_OUTPUT, '(A,I0)') 'Error reading title card. IOSTAT = ', ios
+        write(UNIT_OUTPUT, '(A)') 'IOSTAT < 0: End of file reached.'
+        write(UNIT_OUTPUT, '(A)') 'IOSTAT > 0: Read error.'
         stop
     end if
-    
-    ! Write title to output files exactly as original    
     write(UNIT_OUTPUT, '(1H1,4X,20A4)') TITLE
-    
-    ! Check for termination string exactly as original
-    if (TITLE(1) == DONE) then
-        stop  ! Terminate program exactly as original
-    end if
 
+    ! Read namelist input
     read(UNIT_INPUT, INP, iostat=ios)
-    
-    ! Check if namelist read was successful
     if (ios /= 0) then
         write(UNIT_OUTPUT, '(A)') 'Error reading namelist input. Please check the input file.'
-        stop  ! Terminate on input error like original
-    end if
-    
-    ! Print input namelist for debugging
-    ! call PRINT_INP_NAMELIST()
-
-    ! Handle PSTART=3 case - test if P array in core is usable (original check)
-    if (PSTART == 3) then
-      if (ABORT1) then
-        write(UNIT_OUTPUT, '(21H0 CALCULATION ABORTED//43H OUTPUT OF PREVIOUS SOLUTION NOT AVAILABLE.)')
-        ! Return to start of loop for next case
-        return ! Will re-enter READIN for next case
-      end if
+        stop
     end if
     
     ! Set AK=0 for physical coordinates
     if (PHYS) AK = 0.0
-    
-    ! Handle automatic mesh generation or YIN initialization
-    if (AMESH) then
-      call AYMESH()
-      call OUTPUT_MESH()
-    else if (YIN(JMIN) == 0.0) then
-      ! YIN needs default initialization for tunnel or free air case
-      if (BCTYPE == 1) then
-        ! Free air case
-        JMAXI = JMXF
-        do J_VAR = JMIN, JMAXI
-          YIN(J_VAR) = YFREE(J_VAR)
-        end do
-      else
-        ! Tunnel case
-        JMAXI = JMXT
-        do J_VAR = JMIN, JMAXI
-          YIN(J_VAR) = YTUN(J_VAR)
-        end do
-      end if
-    end if
 
     ! Echo input parameters to output file with exact original format strings
     write(UNIT_OUTPUT, '(1H0,4X,7HEMACH =,F9.5,5X,5HPOR =,F9.5,3X,6HIMIN =,I4,3X,8HBCTYPE =,I3,5X,8HAMESH = ,L1)') &
@@ -168,6 +113,28 @@ contains
     if (NWDGE == 2) write(UNIT_OUTPUT, '(1H0,15X,15HYOSHIHARA WEDGE)')
     if (IFLAP /= 0) write(UNIT_OUTPUT, '(1H0,15X,17HFLAP IS DEFLECTED,F5.2,20H DEGREES FROM H.L. =,F6.3,8H TO T.E.)') DELFLP, FLPLOC
     
+    ! Handle automatic mesh generation or YIN initialization
+    if (AMESH) then
+      write(*,'(A)') 'Generating analytical mesh...'
+      call AYMESH()
+    else if (YIN(JMIN) == 0.0) then
+      ! YIN needs default initialization for tunnel or free air case
+      if (BCTYPE == 1) then
+        ! Free air case
+        JMAXI = JMXF
+        do J_VAR = JMIN, JMAXI
+          YIN(J_VAR) = YFREE(J_VAR)
+        end do
+      else
+        ! Tunnel case
+        JMAXI = JMXT
+        do J_VAR = JMIN, JMAXI
+          YIN(J_VAR) = YTUN(J_VAR)
+        end do
+      end if
+    end if
+
+    ! Output mesh coordinates
     write(UNIT_OUTPUT, '(1H0,4X,3HXIN)')
     write(UNIT_OUTPUT, '(4X,6F11.6)') (XIN(IDX), IDX=IMIN, IMAXI)
     write(UNIT_OUTPUT, '(1H0,4X,3HYIN)')
@@ -627,6 +594,8 @@ contains
     
     ! Output airfoil surface data
     call OUTPUT_CP_MACH_XLINE(CL_val, CM, EM1L, EM1U)
+
+    call OUTPUT_MESH()
     
   end subroutine PRINT1
 

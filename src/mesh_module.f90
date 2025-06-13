@@ -188,7 +188,7 @@ contains
     end if
   end subroutine CKMESH
 
-  ! Coarsen mesh by halving for initial solution pass
+  ! Initial mesh setup: original mesh (IREF=-1) or create coarse mesh (IREF>=0)
   subroutine CUTOUT()
     use common_data, only: X, Y, XMID, YMID, IREF, ICUT, XIN, YIN, IMIN, IMAX, JMIN, JMAX, JLOW, JUP, ITE
     implicit none
