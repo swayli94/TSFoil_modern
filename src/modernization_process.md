@@ -52,7 +52,6 @@ tsfoil_modern/
    | `WANGLE` | Wedge angle for viscous correction | ✅ |
    | `FINDSK` | Find shock location | ✅ |
    | `NEWISK` | Shock index adjustment | ✅ |
-   | `MACHMP` | Print map of Mach number | ✅ |
 
 3. **`spline_module.f90`** - Cubic spline interpolation
 
@@ -126,6 +125,7 @@ tsfoil_modern/
    | `M1LINE` | Sonic line detection | ✅ |
    | `PLTSON` | Sonic line printer | ✅ |
    | `GUESSP` | Solution initialization | ✅ |
+   | `MACHMP` | Print map of Mach number | Rewritten to `OUTPUT_CP_MACH_FIELD` |
 
 ### Compilation Dependencies
 

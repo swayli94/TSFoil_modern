@@ -4,7 +4,7 @@
 module math_module
   implicit none
   public :: ARF, SIMP, PX, PY, EMACH1, LIFT, PITCH, TRAP
-  public :: VWEDGE, WANGLE, FINDSK, DROOTS, VROOTS, NEWISK, MACHMP
+  public :: VWEDGE, WANGLE, FINDSK, DROOTS, VROOTS, NEWISK
 
 contains
 
@@ -733,12 +733,6 @@ contains
         U = PX(I, J)
         EM = EMACH1(U)
         
-        ! Write to mmap.out file (Unit 18) - Mach number data
-        write(UNIT_MMAP, '(F16.12)', ADVANCE="NO") EM
-        
-        ! Write to cpmp.out file (Unit 21) - Pressure coefficient data  
-        write(UNIT_CPMP, '(F16.12)', ADVANCE="NO") -2.0 * U * CPFACT
-        
         if (EM <= 0.0) then
           MM(I) = ichar('0')
         else
@@ -749,10 +743,6 @@ contains
           MM(I) = int(10.0 * EM + 0.5)
         end if
       end do
-      
-      ! End lines in data files
-      write(UNIT_MMAP, '(A)') ""
-      write(UNIT_CPMP, '(A)') ""
       
       ! Write map line to main output
       write(UNIT_OUTPUT, '(11X,A1,99I1)') IJC, (MM(I), I=2, IMAX)

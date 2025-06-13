@@ -24,29 +24,23 @@ contains
   
   ! Open all output files with unique file units
   subroutine open_output_files()
-    use common_data, only: UNIT_OUTPUT, UNIT_SUMMARY, UNIT_CPXS, UNIT_MMAP
-    use common_data, only: UNIT_CNVG, UNIT_MESH, UNIT_CPMP
+    use common_data, only: UNIT_OUTPUT, UNIT_SUMMARY, UNIT_CNVG
     implicit none
     
     open(unit=UNIT_OUTPUT, file='tsfoil2.out', status='replace', action='write')   ! Unit 15
     open(unit=UNIT_SUMMARY, file='smry.out', status='replace', action='write')     ! Unit 16
-    open(unit=UNIT_MMAP, file='mmap.out', status='replace', action='write')        ! Unit 18
     open(unit=UNIT_CNVG, file='cnvg.out', status='replace', action='write')        ! Unit 19
-    open(unit=UNIT_CPMP, file='cpmp.out', status='replace', action='write')        ! Unit 21
         
   end subroutine open_output_files
 
   ! Close all output files
   subroutine close_output_files()
-    use common_data, only: UNIT_OUTPUT, UNIT_SUMMARY, UNIT_CPXS, UNIT_MMAP
-    use common_data, only: UNIT_CNVG, UNIT_MESH, UNIT_CPMP
+    use common_data, only: UNIT_OUTPUT, UNIT_SUMMARY, UNIT_CNVG
     implicit none
 
     close(UNIT_OUTPUT)   ! tsfoil2.out
     close(UNIT_SUMMARY)  ! smry.out
-    close(UNIT_MMAP)     ! mmap.out
     close(UNIT_CNVG)     ! cnvg.out
-    close(UNIT_CPMP)     ! cpmp.out
 
   end subroutine close_output_files
   
@@ -135,6 +129,7 @@ contains
     ! Handle automatic mesh generation or YIN initialization
     if (AMESH) then
       call AYMESH()
+      call OUTPUT_MESH()
     else if (YIN(JMIN) == 0.0) then
       ! YIN needs default initialization for tunnel or free air case
       if (BCTYPE == 1) then
@@ -383,7 +378,7 @@ contains
   ! Matches original PRINT subroutine functionality exactly
   subroutine PRINT()
     use common_data
-    use math_module, only: PITCH, LIFT, MACHMP
+    use math_module, only: PITCH, LIFT
     implicit none
     
     ! Local variables matching original exactly
@@ -464,7 +459,9 @@ contains
     ! Call specialized print routines
     call PRINT1()
     call PRTMC()
-    call MACHMP()
+    
+    ! Output field data
+    call OUTPUT_CP_MACH_FIELD()
     
     if (ABORT1) return
     
@@ -631,18 +628,20 @@ contains
     ! Output airfoil surface data
     call OUTPUT_CP_MACH_XLINE(CL_val, CM, EM1L, EM1U)
     
-    ! Output mesh data to file in Tecplot format
-    call OUTPUT_MESH()
-
   end subroutine PRINT1
 
   ! Output mesh data to file in Tecplot format
-  subroutine OUTPUT_MESH()
+  subroutine OUTPUT_MESH(OPTIONAL_FILE_NAME)
     use common_data, only: X, Y, JMIN, JMAX, UNIT_MESH, IMIN, IMAX
     implicit none
     integer :: I_P1, J_P1
+    character(len=*), optional :: OPTIONAL_FILE_NAME
 
-    open(unit=UNIT_MESH, file='mesh.dat', status='replace', action='write')
+    if (present(OPTIONAL_FILE_NAME)) then
+      open(unit=UNIT_MESH, file=trim(OPTIONAL_FILE_NAME), status='replace', action='write')
+    else
+      open(unit=UNIT_MESH, file='mesh.dat', status='replace', action='write')
+    end if
 
     write(UNIT_MESH, '(A)') 'VARIABLES = "X", "Y"'
     write(UNIT_MESH, '(A,I5,A,I5,A)') 'ZONE I= ', IMAX-IMIN+1, ' J= ', JMAX-JMIN+1, ' F= POINT'
@@ -690,6 +689,37 @@ contains
     
   end subroutine OUTPUT_CP_MACH_XLINE
 
+  ! Output Cp, Mach field in Tecplot format
+  subroutine OUTPUT_CP_MACH_FIELD()
+    use common_data, only: UNIT_FIELD, X, Y, JMIN, JMAX, IMIN, IMAX, CPFACT
+    use math_module, only: PX, EMACH1
+    implicit none
+    
+    integer :: I, J
+    real :: U, EM, CP_VAL
+
+    open(unit=UNIT_FIELD, file='field.dat', status='replace', action='write')
+
+    ! Write Tecplot header
+    write(UNIT_FIELD, '(A,F10.6)') '# CPFACT = ', CPFACT
+    write(UNIT_FIELD, '(A)') 'VARIABLES = "X", "Y", "Mach", "Cp"'
+    write(UNIT_FIELD, '(A,I5,A,I5,A)') 'ZONE I= ', IMAX-IMIN+1, ' J= ', JMAX-JMIN+1, ' F= POINT'
+
+    ! Write field data in point format
+    do J = JMIN, JMAX
+      do I = IMIN, IMAX
+        U = PX(I, J)    ! Function PX computes U = DP/DX at point I,J
+        EM = EMACH1(U)  ! Function EMACH1 computes Mach number from U
+        CP_VAL = -2.0 * U * CPFACT  ! CPFACT is a scaling factor for pressure coefficient
+        write(UNIT_FIELD, '(4F16.12)') X(I), Y(J), EM, CP_VAL
+      end do
+    end do
+
+    close(UNIT_FIELD)
+
+    write(*, '(A)') 'Output to field.dat: Cp, Mach field data'
+
+  end subroutine OUTPUT_CP_MACH_FIELD
 
   ! Print Cp, flow angle (theta), and Mach number on selected j-lines
   ! Prints pressure coefficient, flow angle and Mach number in flow field.

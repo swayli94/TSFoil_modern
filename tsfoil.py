@@ -331,6 +331,99 @@ class Plotter(object):
         except Exception as e:
             print(f"Error reading mesh file: {e}")
 
+    def plot_field_tecplot(self, filename="field.dat", save_to_folder=None, show_every_nth=1):
+        """Plot the mesh from field.dat with contour field data"""
+        try:
+            x_unique, y_unique, mach_2d, cp_2d = self.extract_field_tecplot(filename)
+            
+            if len(x_unique) == 0 or len(y_unique) == 0:
+                print(f"No valid field data found in {filename}")
+                return
+            
+            # Create subplot for both mesh and field visualization
+            fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(16, 12))
+            
+            # 1. Plot mesh with grid lines
+            X, Y = np.meshgrid(x_unique, y_unique)
+            
+            # Plot every nth grid line to avoid overcrowding
+            for i in range(0, len(y_unique), show_every_nth):
+                ax1.plot(X[i, :], Y[i, :], 'b-', lw=0.3, alpha=0.7)
+            for j in range(0, len(x_unique), show_every_nth):
+                ax1.plot(X[:, j], Y[:, j], 'b-', lw=0.3, alpha=0.7)
+            
+            # Highlight airfoil 
+            airfoil_mask = (np.abs(Y) < 0.01) & (X >= 0) & (X <= 1)
+            if np.any(airfoil_mask):
+                ax1.plot(X[airfoil_mask], Y[airfoil_mask], 'r-', lw=2, label='Airfoil')
+            
+            ax1.set_title(f'Computational Grid from {filename}')
+            ax1.set_xlabel('x/c')
+            ax1.set_ylabel('y/c')
+            ax1.set_aspect('equal')
+            ax1.grid(True, alpha=0.3)
+            ax1.legend()
+            
+            # 2. Plot Mach contours if available
+            if mach_2d.size > 0:
+                levels = np.linspace(mach_2d.min(), mach_2d.max(), NUM_LEVELS)
+                cs1 = ax2.contour(X, Y, mach_2d, levels=levels, linewidths=0.5, cmap=self.gen_cmap())
+                ax2.plot([0, 1], [0, 0], 'k-', lw=2, label='Airfoil')
+                ax2.set_title('Mach Number Contours')
+                ax2.set_xlabel('x/c')
+                ax2.set_ylabel('y/c')
+                ax2.set_aspect('equal')
+                fig.colorbar(cs1, ax=ax2)
+            else:
+                ax2.text(0.5, 0.5, 'No Mach data available', ha='center', va='center', transform=ax2.transAxes)
+                ax2.set_title('Mach Number Contours - No Data')
+            
+            # 3. Plot Cp contours if available  
+            if cp_2d.size > 0:
+                levels = np.linspace(cp_2d.min(), cp_2d.max(), NUM_LEVELS)
+                cs2 = ax3.contour(X, Y, cp_2d, levels=levels, linewidths=0.5, cmap=self.gen_cmap())
+                ax3.plot([0, 1], [0, 0], 'k-', lw=2, label='Airfoil')
+                ax3.set_title('Pressure Coefficient Contours')
+                ax3.set_xlabel('x/c')
+                ax3.set_ylabel('y/c')
+                ax3.set_aspect('equal')
+                fig.colorbar(cs2, ax=ax3)
+            else:
+                ax3.text(0.5, 0.5, 'No Cp data available', ha='center', va='center', transform=ax3.transAxes)
+                ax3.set_title('Pressure Coefficient Contours - No Data')
+            
+            # 4. Show field statistics
+            ax4.axis('off')
+            stats_text = f"Field Data Statistics from {filename}\n\n"
+            stats_text += f"Grid dimensions: {len(x_unique)} x {len(y_unique)}\n"
+            stats_text += f"Total points: {len(x_unique) * len(y_unique)}\n\n"
+            
+            if mach_2d.size > 0:
+                stats_text += f"Mach Number:\n"
+                stats_text += f"  Min: {mach_2d.min():.4f}\n"
+                stats_text += f"  Max: {mach_2d.max():.4f}\n"
+                stats_text += f"  Mean: {mach_2d.mean():.4f}\n\n"
+            
+            if cp_2d.size > 0:
+                stats_text += f"Pressure Coefficient:\n"
+                stats_text += f"  Min: {cp_2d.min():.4f}\n"
+                stats_text += f"  Max: {cp_2d.max():.4f}\n"
+                stats_text += f"  Mean: {cp_2d.mean():.4f}\n"
+            
+            ax4.text(0.1, 0.9, stats_text, transform=ax4.transAxes, fontsize=10,
+                    verticalalignment='top', fontfamily='monospace',
+                    bbox=dict(boxstyle="round,pad=0.5", facecolor="lightgray"))
+            
+            plt.tight_layout()
+            
+            if save_to_folder:
+                filename_out = os.path.join(save_to_folder, "field_overview.png")
+                plt.savefig(filename_out, dpi=300, bbox_inches='tight')
+                print(f"      Saved: {filename_out}")
+            
+        except Exception as e:
+            print(f"Error plotting field data from {filename}: {e}")
+
     def gplot(self, x, y, row=None, color='red', save_to_folder=None):
         fig, ax = plt.subplots(figsize=(8, 6))
         ax.set_title("{} vs {}".format(x.upper(), y.upper()))
@@ -519,34 +612,117 @@ class TSFoil(Plotter):
         
         return x_unique, y_unique
 
+    def extract_field_tecplot(self, filename="field.dat"):
+        """Extract field data from Tecplot format file (X, Y, Mach, Cp)"""
+        if not os.path.exists(filename):
+            print(f"Warning: {filename} not found")
+            return np.array([]), np.array([]), np.array([]), np.array([])
+        
+        try:
+            with open(filename, 'r') as f:
+                lines = f.readlines()
+            
+            # Parse header to get variables and grid dimensions
+            variables_line = lines[0].strip()  # VARIABLES = "X", "Y", "Mach", "Cp"
+            zone_line = lines[1].strip()       # ZONE I= {ni} J= {nj} F= POINT
+            
+            # Extract grid dimensions
+            parts = zone_line.split()
+            ni = int(parts[2])  # I= value
+            nj = int(parts[4])  # J= value
+            
+            print(f"   Reading field data from {filename}: {ni} x {nj} points")
+            
+            # Read data points starting from line 2 (0-indexed)
+            data = []
+            for i in range(2, len(lines)):
+                line = lines[i].strip()
+                if line:  # Skip empty lines
+                    values = list(map(float, line.split()))
+                    if len(values) >= 4:  # X, Y, Mach, Cp
+                        data.append(values[:4])
+            
+            if len(data) == 0:
+                print(f"   Warning: No valid data found in {filename}")
+                return np.array([]), np.array([]), np.array([]), np.array([])
+            
+            data = np.array(data)
+            x_coords = data[:, 0]
+            y_coords = data[:, 1]
+            mach_data = data[:, 2]
+            cp_data = data[:, 3]
+            
+            # Reshape data to 2D grids
+            x_2d = x_coords.reshape(nj, ni)
+            y_2d = y_coords.reshape(nj, ni)
+            mach_2d = mach_data.reshape(nj, ni)
+            cp_2d = cp_data.reshape(nj, ni)
+            
+            # Extract unique coordinates for mesh arrays
+            x_unique = x_2d[0, :]  # First row for x-coordinates
+            y_unique = y_2d[:, 0]  # First column for y-coordinates
+            
+            # Reverse y coordinates to match original orientation
+            y_unique = y_unique[::-1]
+            mach_2d = mach_2d[::-1, :]  # Flip vertically to match mesh orientation
+            cp_2d = cp_2d[::-1, :]      # Flip vertically to match mesh orientation
+            
+            print(f"   Loaded field data: mesh({len(x_unique)} x {len(y_unique)}), mach{mach_2d.shape}, cp{cp_2d.shape}")
+            
+            return x_unique, y_unique, mach_2d, cp_2d
+            
+        except Exception as e:
+            print(f"Warning: Error reading {filename}: {e}")
+            return np.array([]), np.array([]), np.array([]), np.array([])
+
     def extract_cpxs(self, filename="cpxs.dat"):
         return np.genfromtxt(filename, skip_header=5).T
 
-    def extract_mmap(self, filename="mmap.out"):
-        """Extract Mach contour data"""
+    def extract_mmap_fallback(self, filename="mmap.out"):
+        """Extract Mach contour data from mmap.out (fallback method)"""
         if not os.path.exists(filename):
             print(f"Warning: {filename} not found")
             return np.array([])
         try:
             data = np.loadtxt(filename)
-            print(f"   Loaded mach map: shape {data.shape}")
+            print(f"   Loaded mach map from {filename}: shape {data.shape}")
             return data
         except Exception as e:
             print(f"Warning: Error reading {filename}: {e}")
             return np.array([])
 
-    def extract_cpmp(self, filename="cpmp.out"):
-        """Extract Cp contour data"""
+    def extract_cpmp_fallback(self, filename="cpmp.out"):
+        """Extract Cp contour data from cpmp.out (fallback method)"""
         if not os.path.exists(filename):
             print(f"Warning: {filename} not found")
             return np.array([])
         try:
             data = np.loadtxt(filename)
-            print(f"   Loaded cp map: shape {data.shape}")
+            print(f"   Loaded cp map from {filename}: shape {data.shape}")
             return data
         except Exception as e:
             print(f"Warning: Error reading {filename}: {e}")
             return np.array([])
+
+    def extract_mmap(self, filename="field.dat"):
+        """Extract Mach contour data from field.dat (Tecplot format)"""
+        x_unique, y_unique, mach_2d, cp_2d = self.extract_field_tecplot(filename)
+        if mach_2d.size > 0:
+            print(f"   Loaded mach map from field.dat: shape {mach_2d.shape}")
+            return mach_2d
+        else:
+            # Fallback to old format if field.dat not available
+            return self.extract_mmap_fallback()
+
+    def extract_cpmp(self, filename="field.dat"):
+        """Extract Cp contour data from field.dat (Tecplot format)"""
+        x_unique, y_unique, mach_2d, cp_2d = self.extract_field_tecplot(filename)
+        if cp_2d.size > 0:
+            print(f"   Loaded cp map from field.dat: shape {cp_2d.shape}")
+            return cp_2d
+        else:
+            # Fallback to old format if field.dat not available
+            return self.extract_cpmp_fallback()
 
     def extract_cnvg(self, filename="smry.out"):
         return "SOLUTION CONVERGED" in open(filename).read()
@@ -564,28 +740,37 @@ class TSFoil(Plotter):
         df["mach"] = self.config.get("EMACH", 0.0)
         df["alpha"] = self.config.get("ALPHA", 0.0)
         
-        # Extract contour maps first to determine required mesh dimensions
-        mach_map = self.extract_mmap()
-        cp_map = self.extract_cpmp()
+        # Try to extract field data from field.dat first (unified approach)
+        field_x, field_y, mach_map, cp_map = self.extract_field_tecplot("field.dat")
         
-        # Determine the required mesh dimensions from contour data
-        if mach_map.size > 0:
-            contour_shape = mach_map.shape
-            print(f"   Contour data shape: {contour_shape}")
-        elif cp_map.size > 0:
-            contour_shape = cp_map.shape
-            print(f"   Contour data shape: {contour_shape}")
+        # If field.dat is not available, fall back to separate files
+        if mach_map.size == 0:
+            print("   Field.dat not available, falling back to separate files")
+            mach_map = self.extract_mmap_fallback()
+            cp_map = self.extract_cpmp_fallback()
+            
+            # Determine the required mesh dimensions from contour data
+            if mach_map.size > 0:
+                contour_shape = mach_map.shape
+                print(f"   Contour data shape: {contour_shape}")
+            elif cp_map.size > 0:
+                contour_shape = cp_map.shape
+                print(f"   Contour data shape: {contour_shape}")
+            else:
+                contour_shape = None
+                print("   No contour data available")
+            
+            # Read mesh from mesh.dat when field.dat is not available
+            try:
+                x, y = self.extract_mesh_tecplot_compatible("mesh.dat", contour_shape)
+                print("   Reading mesh from mesh.dat (Tecplot format)")
+            except FileNotFoundError:
+                print("   Warning: No mesh file found")
+                x, y = [], []
         else:
-            contour_shape = None
-            print("   No contour data available")
-        
-        # Read mesh from Tecplot format
-        try:
-            x, y = self.extract_mesh_tecplot_compatible("mesh.dat", contour_shape)
-            print("   Reading mesh from mesh.dat (Tecplot format)")
-        except FileNotFoundError:
-            print("   Warning: No mesh file found")
-            x, y = [], []
+            # Use mesh coordinates from field.dat
+            x, y = field_x, field_y
+            print("   Using mesh coordinates from field.dat")
         
         df["mesh_x"] = [x]
         df["mesh_y"] = [y]
@@ -705,6 +890,9 @@ if __name__ == "__main__":
     
     print("   - Full mesh from Tecplot format (detailed)")
     tsfoil.plot_mesh_tecplot(save_to_folder=plots_dir, show_every_nth=2)
+    
+    print("   - Field data overview from field.dat (if available)")
+    tsfoil.plot_field_tecplot(save_to_folder=plots_dir, show_every_nth=3)
     
     print("   - Cp-x distribution")
     tsfoil.plot_cpx(save_to_folder=plots_dir)

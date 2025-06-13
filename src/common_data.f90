@@ -50,7 +50,7 @@ module common_data
   public :: initialize_common
   public :: UNIT_INPUT, UNIT_OUTPUT, UNIT_RESTART
   public :: UNIT_DLAOUT_INPUT, UNIT_DLAOUT_OUTPUT  ! DLAOUT input and output files
-  public :: UNIT_SUMMARY, UNIT_CPXS, UNIT_MMAP, UNIT_CNVG, UNIT_MESH, UNIT_CPMP
+  public :: UNIT_SUMMARY, UNIT_CPXS, UNIT_CNVG, UNIT_MESH, UNIT_FIELD
   
   ! Mesh indices (from COMMON /COM1/)
 
@@ -228,10 +228,9 @@ module common_data
   integer, parameter :: UNIT_OUTPUT = 15        ! tsfoil2.out (Main output file with comprehensive results)
   integer, parameter :: UNIT_SUMMARY = 16       ! smry.out (Summary file with key results)
   integer, parameter :: UNIT_CPXS = 17          ! cpxs.out (Pressure coefficient vs. X-coordinate data)
-  integer, parameter :: UNIT_MMAP = 18          ! mmap.out (Mach number map data)
   integer, parameter :: UNIT_CNVG = 19          ! cnvg.out (Convergence history file)
   integer, parameter :: UNIT_MESH = 20          ! mesh.dat (Mesh coordinate data)
-  integer, parameter :: UNIT_CPMP = 21          ! cpmp.out (Pressure coefficient map data)
+  integer, parameter :: UNIT_FIELD = 11         ! field.dat (Pressure coefficient and Mach number field data)
 
 contains
 
