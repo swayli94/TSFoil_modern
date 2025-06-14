@@ -49,7 +49,6 @@ contains
     use common_data
     use mesh_module, only: ISLIT, JSLIT, CKMESH, AYMESH
     implicit none    
-    character(len=4), parameter :: DONE = 'FINI'  ! Declare DONE to match original exactly
     integer :: J_VAR, IM1, JM1, IDX, JDX, I_ITER, J_ITER
     real :: TERM, HTM, HTP, YS, YE
     character(len=100) :: IN_FILENAME

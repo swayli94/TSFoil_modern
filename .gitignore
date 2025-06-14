@@ -11,3 +11,4 @@
 *.wal
 *.dat
 *.exe
+*.pyc
