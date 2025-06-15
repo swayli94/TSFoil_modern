@@ -1893,4 +1893,115 @@ contains
     
   end subroutine PRINT1
 
+  ! Subroutine to print map of Mach no. rounded to nearest .1
+  ! UNUSED: Replaced by OUTPUT_MACH_MAP in io_module.f90
+  subroutine MACHMP()
+    use common_data
+    implicit none
+    
+    integer :: K, J, I, MM(N_MESH_POINTS)
+    real :: U, EM
+    character(len=1) :: IJC
+    character(len=1), parameter :: IB = ' ', IP = '+', IM = '-', IL = 'L', IT = 'T'
+    
+    ! Write header to main output file (Unit 15)
+    write(UNIT_OUTPUT, '(40H1  MACH NO. MAP.   ROUNDED TO NEAREST .1///)')
+    
+    do K = 2, JMAX
+      J = JMAX - K + 2
+      IJC = IB
+      if (J == JUP) IJC = IP
+      if (J == JLOW) IJC = IM
+      
+      ! Initialize MM array with blanks
+      do I = 1, IMAX
+        MM(I) = ichar(IB)
+      end do
+      
+      do I = 2, IMAX
+        U = PX(I, J)
+        EM = EMACH1(U)
+        
+        if (EM <= 0.0) then
+          MM(I) = ichar('0')
+        else
+          ! Handle Mach numbers > 1.05 by subtracting 1.0 repeatedly
+          do while (EM > 1.05)
+            EM = EM - 1.0
+          end do
+          MM(I) = int(10.0 * EM + 0.5)
+        end if
+      end do
+      
+      ! Write map line to main output
+      write(UNIT_OUTPUT, '(11X,A1,99I1)') IJC, (MM(I), I=2, IMAX)
+    end do
+    
+    ! Mark leading and trailing edge positions
+    do I = 1, IMAX
+      MM(I) = ichar(IB)
+      if (I == ILE) MM(I) = ichar(IL)
+      if (I == ITE) MM(I) = ichar(IT)
+    end do
+    
+    ! Write final line with airfoil markers
+    write(UNIT_OUTPUT, '(12X,99A1)') (char(MM(I)), I=2, IMAX)
+    
+  end subroutine MACHMP
+
+  ! Compute P at point (XP,YP) using far-field solution for subsonic flow
+  ! This subroutine extrapolates the potential P at coordinates (XP,YP) using
+  ! far-field solutions when new mesh points are outside the range of old mesh points
+  ! during restart interpolation. Called by GUESSP during restart operations.
+  ! UNUSED: Never called in current implementation
+  subroutine EXTRAP(XP, YP, PNEW)
+    ! COMPUTE P AT X, YP USING FAR FIELD SOLUTION ! FOR SUBSONIC FLOW
+    ! CALLED BY - GUESSP.
+    use common_data, only: AK, DUB, RTK, BCTYPE, CIRCFF
+    use common_data, only: F, H, PI, TWOPI
+    implicit none
+    real, intent(in) :: XP, YP    ! Coordinates where P is to be computed
+    real, intent(out) :: PNEW     ! Computed potential value    ! Local variables
+    real :: XI_VAR, ETA_VAR, TERM, ARG1, ARG2, YP_local
+    
+    if (BCTYPE == 1) then
+        ! FREE AIR BOUNDARY CONDITION
+        YP_local = YP
+        if (abs(YP_local) < 1.0E-6) YP_local = -1.0E-6
+          XI_VAR = XP - XSING
+        ETA_VAR = YP_local * RTK
+        
+        PNEW = -CIRCFF / TWOPI * (atan2(ETA_VAR, XI_VAR) + PI - sign(PI, ETA_VAR)) + &
+               DUB / TWOPI / RTK * (XI_VAR / (XI_VAR*XI_VAR + ETA_VAR*ETA_VAR))
+
+    else
+        ! TUNNEL WALL BOUNDARY CONDITION (all other BCTYPE values)
+        ETA_VAR = YP / H
+        XI_VAR = (XP - XSING) / (H * RTK)
+        
+        if (XI_VAR >= 0.0) then
+            ! XP is downstream of airfoil
+            TERM = ETA_VAR
+            if (BCTYPE /= 3) TERM = sin(ETA_VAR * BETA0) / BETA0
+            
+            PNEW = -0.5 * CIRCFF * (1.0 - sign(1.0, ETA_VAR) + &
+                   (1.0 - JET) * PSI0 * TERM * exp(-BETA0 * XI_VAR)) + &
+                   DUB * 0.5 / (AK * H) * (B_COEF + OMEGA0 * cos(ETA_VAR * ALPHA0) * &
+                   exp(-ALPHA0 * XI_VAR))
+        else
+            ! XP is upstream of airfoil
+            TERM = 0.0
+            if (JET /= 0.0) TERM = JET * ETA_VAR / (1.0 + F)
+            
+            ARG1 = PI - ALPHA1
+            ARG2 = PI - BETA2
+            
+            PNEW = -0.5 * CIRCFF * (1.0 - TERM - PSI2 * sin(ETA_VAR * ARG2) / ARG2 * &
+                   exp(ARG2 * XI_VAR)) - 0.5 * DUB / (AK * H) * &
+                   ((1.0 - B_COEF) * OMEGA1 * cos(ETA_VAR * ARG1) * exp(XI_VAR * ARG1))
+        end if
+    end if
+    
+  end subroutine EXTRAP
+
 end module no_use_subroutines

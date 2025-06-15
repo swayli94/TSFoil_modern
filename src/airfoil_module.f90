@@ -2,8 +2,11 @@
 ! Module for airfoil geometry routines
 
 module airfoil_module
+  use common_data, only: N_MESH_POINTS
   implicit none
   public :: BODY, PRBODY
+
+  real :: CAMBER(N_MESH_POINTS), THICK(N_MESH_POINTS), XFOIL(N_MESH_POINTS)
 
 contains
 
@@ -13,8 +16,8 @@ contains
   ! If PHYS = .FALSE. all dimensions except X are normalized by chord length and thickness ratio
   ! Called by - BODYil geometry: thickness, camber, volume
   subroutine BODY()
-    use common_data, only: IMIN, IMAX, ILE, ITE, XIN
-    use common_data, only: FL, FXL, FU, FXU, CAMBER, THICK, VOL, XFOIL, IFOIL
+    use common_data, only: IMIN, IMAX, ILE, ITE, X
+    use common_data, only: FL, FXL, FU, FXU, VOL, IFOIL
     use common_data, only: NL, NU, XL, XU, YL, YU, RIGF, IFLAP, DELFLP, FLPLOC
     use common_data, only: PHYS, DELTA
     use math_module, only: SIMP
@@ -48,7 +51,7 @@ contains
     IC = 0
     do I = ILE, ITE
       IC = IC + 1
-      XP = XIN(I)
+      XP = X(I)
       XFOIL(IC) = XP
       call SPLN1X(XU, YU, NU, XP, YP, DYP)
       FU(IC) = YP*DELINV
@@ -63,7 +66,7 @@ contains
     IC = 0
     do I = ILE, ITE
       IC = IC + 1
-      XP = XIN(I)
+      XP = X(I)
       call SPLN1X(XL, YL, NL, XP, YP, DYP)
       FL(IC) = YP*DELINV
       FXL(IC) = DYP*DELINV
@@ -113,7 +116,7 @@ contains
   ! If PHYS = .FALSE. all dimensions except X are normalized by chord length and thickness ratio
   ! Called by - BODY
   subroutine PRBODY()
-    use common_data, only: FL, FXL, FU, FXU, CAMBER, THICK, VOL, XFOIL, IFOIL, PHYS, DELTA, UNIT_OUTPUT
+    use common_data, only: FL, FXL, FU, FXU, VOL, IFOIL, PHYS, DELTA, UNIT_OUTPUT
     implicit none
     real :: THMAX, CAMAX, VOLUME, YUP, YXUP, YLO, YXLO, TH, CA
     integer :: II    

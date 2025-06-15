@@ -50,10 +50,6 @@ tsfoil_modern/
    | `PITCH(CMFACT)` | Pitching moment calculation | ✅ |
    | `TRAP` | Integrate Y DX by trapezoidal rule | ✅ |
    | `report_convergence_error` | Report convergence errors | ✅ |
-   | `DROOTS` | Compute constants for wind tunnel | ✅ |
-   | `VROOTS` | Slotted-wall angle roots | ✅ |
-   | `VWEDGE` | Viscous wedge corrections | ✅ |
-   | `WANGLE` | Wedge angle for viscous correction | ✅ |
    | `FINDSK` | Find shock location | ✅ |
    | `NEWISK` | Shock index adjustment | ✅ |
 
@@ -94,7 +90,11 @@ tsfoil_modern/
    | `BCEND` | Boundary condition application | ✅ |
    | `FARFLD` | Far-field boundary setup | ✅ |
    | `ANGLE` | Angle potential calculation | ✅ |
-   | `EXTRAP` | Far-field extrapolation | ✅ |
+   | `EXTRAP` | Far-field extrapolation | UNUSED |
+   | `VWEDGE` | Viscous wedge corrections | ✅ |
+   | `WANGLE` | Wedge angle for viscous correction | ✅ |
+   | `DROOTS` | Compute constants for wind tunnel | ✅ |
+   | `VROOTS` | Slotted-wall angle roots | ✅ |
 
 7. **`numerical_solvers.f90`** - Core algorithms
 
@@ -112,19 +112,19 @@ tsfoil_modern/
    |---------------------|-------------|--------|
    | `READIN` | Input parameter reading | ✅ |
    | `SCALE` | Variable scaling | ✅ |
-   | `ECHINP` | Input echoing | UNUSED |
+   | `CDCOLE` | Drag coefficient assembly | ✅ |
    | `PRINT` | Main output driver | ✅ |
    | `PRINT1` | Body Cp and Mach output | Replaced by `CHECK_SHOCK_AND_MACH` |
    | `PRTFLD` | Field output | UNUSED |
    | `PRTMC` | Flow type mapping | Replaced by `OUTPUT_FIELD` |
    | `PRTSK` | Shock wave output | ✅ |
    | `PRTWAL` | Wind tunnel wall condition output | ✅ |
+   | `ECHINP` | Input echoing | UNUSED |
    | `DLAOUT` | Output Cp data | UNUSED |
    | `LOADP` | Read restart file | UNUSED |
    | `CPPLOT` | Cp plot preparation | Replaced by `OUTPUT_CP_MACH_XLINE` |
    | `FIXPLT` | Plot array construction | Replaced by `OUTPUT_CP_MACH_XLINE` |
    | `SAVEP` | Solution storage | UNUSED |
-   | `CDCOLE` | Drag coefficient assembly | ✅ |
    | `M1LINE` | Sonic line detection | UNUSED |
    | `PLTSON` | Sonic line printer | UNUSED |
    | `GUESSP` | Solution initialization | UNUSED |

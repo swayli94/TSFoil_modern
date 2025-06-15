@@ -13,34 +13,26 @@ module common_data
   public :: N_MESH_POINTS, NMP_plus2, NMP_plus1
   public :: IMIN, IMAX, IUP, IDOWN, ILE, ITE, JMIN, JMAX, JUP, JLOW, JTOP, JBOT
   public :: AK, ALPHA, DUB, GAM1, RTK, PHYS
-  public :: KSTEP, ABORT1
-  public :: XIN, YIN
-  public :: P, X, Y  ! Main solution and coordinate arrays
-  public :: FL, FXL, FU, FXU, CAMBER, THICK, XFOIL, VOL, IFOIL
+  public :: ABORT1
+  public :: P, X, Y, XIN, YIN
+  public :: FL, FXL, FU, FXU, VOL, IFOIL
   public :: NL, NU, XL, XU, YL, YU, PERCENT, CHORD
   public :: RIGF, IFLAP, DELFLP, FLPLOC, FSYM
   public :: SIMDEF, DELTA, EMACH, DELRT2, EMROOT, CL
-  public :: CDFACT, CLFACT, CMFACT, CPFACT, CPSTAR, YFACT, VFACT, SONVEL
-  public :: F, H, HALFPI, PI, RTKPOR, TWOPI
+  public :: CDFACT, CLFACT, CMFACT, CPFACT, CPSTAR, SONVEL
+  public :: F, H, HALFPI, PI, TWOPI
   public :: IMAXI, JMAXI
-  public :: XMID, YMID  ! Additional public declarations for io_module and other modules
   public :: BCTYPE, CPL, CPU, C1, CXL, CXC, CXR
   public :: CXXC, CXXL, CXXR, CYYC, CYYD, CYYU, IVAL, XDIFF, YDIFF
   public :: CJUP, CJUP1, CJLOW, CJLOW1, CYYBUD, CYYBUC, CYYBUU
   public :: CYYBLU, CYYBLC, CYYBLD, FXLBC, FXUBC    
-  public :: DTOP, DBOT, VTOP, VBOT, DUP, DDOWN, VUP, VDOWN
-  public :: DIAG, RHS, SUB, SUP
-  public :: CIRCFF, CIRCTE
-  public :: PJUMP, FCR, KUTTA, CVERGE, ERROR, IERROR, JERROR, MAXIT, IPRTER
+  public :: CIRCFF
+  public :: PJUMP, FCR, KUTTA, CVERGE, MAXIT, IPRTER
   public :: CLSET
-  public :: EPS, WE, NWDGE, REYNLD, WCONST, WSLP, WI
-  public :: XSHK, THAMAX, AM1, ZETA, NVWPRT, NISHK
+  public :: EPS, WE, NWDGE, REYNLD, WCONST
   public :: DVERGE, GAM, POR, FHINV, WCIRC
   public :: YFREE, YTUN, JMXF, JMXT
-  public :: B, BETA0, BETA1, BETA2, PSI0, PSI1, PSI2
-  public :: ALPHA0, ALPHA1, ALPHA2, XSING, OMEGA0, OMEGA1, OMEGA2, JET
   public :: THETA  ! COM33: angle array for each mesh point
-  public :: EMU, POLD, DCIRC, OUTERR  ! Missing variables from COM18
   public :: initialize_common, INPERR
   public :: UNIT_INPUT, UNIT_OUTPUT
   public :: UNIT_SUMMARY, UNIT_CPXS, UNIT_MESH, UNIT_FIELD
@@ -57,7 +49,6 @@ module common_data
   ! Main solution arrays
   real :: P(NMP_plus2, NMP_plus1)    ! Potential solution array
 
-
   ! Flow parameters (from /COM2/)
   real :: AK       ! freestream similarity parameter
   real :: ALPHA    ! angle of attack
@@ -67,17 +58,13 @@ module common_data
   logical :: PHYS  ! physical (True) vs similarity (False)
 
   ! Control flags and refinement (from /COM3/)
-  integer :: KSTEP  ! SOR sweep step size
   logical :: ABORT1 ! input abort flag
 
-  ! User-input mesh coordinate arrays (from /COM4/)
-  real :: XIN(NMP_plus2), YIN(NMP_plus2)  ! room for 2 extra points in CKMESH
+  ! User-input mesh coordinate arrays
+  real :: XIN(NMP_plus2), YIN(NMP_plus2)
   
   ! Mesh coordinate arrays
-  real :: X(NMP_plus2), Y(NMP_plus2) ! room for extra points
-
-  ! Coarse mesh coordinate arrays: midpoint (from /COM20/)
-  real :: XMID(N_MESH_POINTS), YMID(N_MESH_POINTS)
+  real :: X(NMP_plus2), Y(NMP_plus2)
 
   integer :: IMIN, IMAX   ! maximum number of grid points in i-direction used in code
   integer :: JMIN, JMAX   ! maximum number of grid points in j-direction used in code
@@ -87,8 +74,8 @@ module common_data
   real :: XDIFF(N_MESH_POINTS), YDIFF(N_MESH_POINTS)
   
   ! COM6: surface and flow arrays
-  real :: FU(N_MESH_POINTS), FL(N_MESH_POINTS), FXU(N_MESH_POINTS), FXL(N_MESH_POINTS)
-  real :: CAMBER(N_MESH_POINTS), THICK(N_MESH_POINTS), XFOIL(N_MESH_POINTS)
+  real :: FU(N_MESH_POINTS), FL(N_MESH_POINTS)
+  real :: FXU(N_MESH_POINTS), FXL(N_MESH_POINTS)
   real :: VOL
   integer :: IFOIL
   
@@ -97,7 +84,6 @@ module common_data
 
   ! COM8: solver control parameters
   real :: CVERGE, DVERGE
-  real :: WI = 1.05                 ! SOR relaxation factor (from COM18)
   real :: WE(3)
   integer :: IPRTER, MAXIT
   
@@ -118,7 +104,7 @@ module common_data
   integer :: JMXF, JMXT
   
   ! COM12: wall/tunnel constants  
-  real :: F, H, HALFPI, PI, RTKPOR, TWOPI
+  real :: F, H, HALFPI, PI, TWOPI
   
   ! COM13: coefficient scaling factors
   real :: CDFACT, CLFACT, CMFACT, CPFACT, CPSTAR
@@ -128,31 +114,14 @@ module common_data
   real :: WCIRC     ! Weight for circulation jump at trailing edge (0.0-1.0)
   logical :: FCR    ! Whether difference equations are fully conservative
   logical :: KUTTA  ! Whether Kutta condition is enforced
-  
-  ! COM15: vortex/doublet parameters
-  real :: B, BETA0, BETA1, BETA2, PSI0, PSI1, PSI2
-  
-  ! COM16: far-field root parameters
-  real :: ALPHA0, ALPHA1, ALPHA2, XSING, OMEGA0, OMEGA1, OMEGA2, JET
-  
+
   ! COM17: special boundary coefficient arrays
   real :: CYYBLC, CYYBLD, CYYBLU, CYYBUC, CYYBUD, CYYBUU
   real :: FXLBC(N_MESH_POINTS), FXUBC(N_MESH_POINTS)
-    
-  ! COM18: error tracking and diagnostics
-  real :: ERROR
-  integer :: IERROR, JERROR
-  real :: EMU(N_MESH_POINTS,2)   ! circulation factors
-  real :: POLD(N_MESH_POINTS,2)  ! old potential values  
-  real :: DCIRC        ! circulation change
-  logical :: OUTERR    ! outer iteration error (logical)
-  
+      
   ! COM19: jump arrays and pressure jump
   real :: PJUMP(N_MESH_POINTS)
-  
-  ! COM19: tridiagonal solver arrays
-  real :: DIAG(N_MESH_POINTS), RHS(N_MESH_POINTS), SUB(N_MESH_POINTS), SUP(N_MESH_POINTS)
-    
+      
   ! COM22: central differencing coefficients
   real :: CXC(N_MESH_POINTS), CXL(N_MESH_POINTS), CXR(N_MESH_POINTS)
   real :: CXXC(N_MESH_POINTS), CXXL(N_MESH_POINTS), CXXR(N_MESH_POINTS)
@@ -162,21 +131,17 @@ module common_data
   real :: CYYC(N_MESH_POINTS), CYYD(N_MESH_POINTS), CYYU(N_MESH_POINTS)
   integer :: IVAL
   
-  ! COM24: far-field boundary arrays
-  real :: DTOP(N_MESH_POINTS), DBOT(N_MESH_POINTS), DUP(N_MESH_POINTS), DDOWN(N_MESH_POINTS)
-  real :: VTOP(N_MESH_POINTS), VBOT(N_MESH_POINTS), VUP(N_MESH_POINTS), VDOWN(N_MESH_POINTS)
-  
   ! COM25: pressure coefficient arrays on X-line (Y=0)
   real :: CPU(N_MESH_POINTS), CPL(N_MESH_POINTS)
   
   ! COM27: transonic similarity state
   real :: CL, DELTA, DELRT2, EMACH, EMROOT, EPS
   integer :: SIMDEF
-  real :: SONVEL, VFACT, YFACT
+  real :: SONVEL
   
   ! COM28: boundary condition identifiers
   integer :: BCTYPE
-  real :: CIRCFF, FHINV, POR, CIRCTE
+  real :: CIRCFF, FHINV, POR
   
   ! COM33: angle array for each mesh point
   real :: THETA(N_MESH_POINTS,N_MESH_POINTS)
@@ -184,14 +149,7 @@ module common_data
   ! COM34: viscous wedge parameters  
   integer :: NWDGE
   real :: REYNLD, WCONST
-  real :: WSLP(N_MESH_POINTS,2)  ! Viscous wedge slopes
-  real :: XSHK(2,3)    ! Shock x-locations
-  real :: THAMAX(2,3)  ! Maximum wedge angles  
-  real :: AM1(2,3)     ! Mach numbers upstream of shocks
-  real :: ZETA(2,3)    ! Wedge length scales
-  integer :: NVWPRT(2) ! Number of viscous wedge prints
-  integer :: NISHK     ! Number of shocks
-  
+
   ! File unit numbers for different output files  
   integer, parameter :: UNIT_INPUT = 2          ! Input file
   integer, parameter :: UNIT_OUTPUT = 15        ! tsfoil2.out (Main output file with comprehensive results)
@@ -216,7 +174,6 @@ contains
     P = 0.0
     DUB = 0.0
     CIRCFF = 0.0
-    CIRCTE = 0.0
 
     ! Default initial values (will be overridden by READIN with IMAXI/JMAXI from input)
     IMIN = 1
@@ -234,28 +191,17 @@ contains
     JTOP = JMAX - 1
     JBOT = JMIN + 1
 
-    KSTEP = 1
     PHYS = .true.
     BCTYPE = 1  ! Default to free air boundary condition
     DELTA = 0.115  ! Updated to match BLOCK DATA
     
     ! Initialize airfoil control parameters
     FSYM = 0
-    
-    ! Initialize viscous wedge parameters
-    WSLP = 0.0
-    XSHK = 0.0
-    THAMAX = 0.0
-    AM1 = 0.0
-    ZETA = 0.0
-    NVWPRT = 0
-    NISHK = 0
       
     ! Initialize constants (from BLOCK DATA)    
     PI = 3.14159265
     HALFPI = 1.570796325
     TWOPI = 6.28318531
-    RTKPOR = 0.0
     F = 0.0
     H = 0.0
     
@@ -390,19 +336,6 @@ contains
                   -0.031104, -0.027333, -0.024661, -0.021854, -0.019517, -0.017429, -0.014527, -0.011771, -0.009228, -0.006537, &
                   -0.003868, -0.002086, -0.000524, 0.000950, 0.002227, 0.003224, 0.003885, 0.004212, 0.004067, 0.003657, &
                   0.003067, 0.002242, 0.001329, 0.000376, 0.000000 /)
-
-    ! Initialize other arrays to zero (from BLOCK DATA)
-    WSLP = 0.0
-    ZETA = 0.0
-    
-    ! Initialize missing COM18 variables
-    EMU = 0.0
-    POLD = 0.0
-    DCIRC = 0.0
-    OUTERR = .false.
-    IERROR = 0
-    JERROR = 0
-    ERROR = 0.0
     
     ! Initialize COM32 variables
     THETA = 0.0

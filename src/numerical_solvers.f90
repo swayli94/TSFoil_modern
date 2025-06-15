@@ -2,35 +2,46 @@
 ! Module for SOR solver and iteration control routines
 
 module numerical_solvers
+  use common_data, only: N_MESH_POINTS
   implicit none
-  public :: SYOR, SOLVE, RECIRC, REDUB, RESET
+  public :: SOLVE
+
+  real :: POLD(N_MESH_POINTS,2)   ! old potential values  
+  real :: EMU(N_MESH_POINTS,2)    ! circulation factors
+  real :: WI = 1.05               ! SOR relaxation factor
+  real :: CIRCTE = 0.0            ! Circulation at trailing edge (save the value for iterations)
+
+  integer, parameter :: KSTEP = 1 ! Step size for circulation-jump boundary update
 
 contains
 
   ! Perform one SOR sweep computing residuals and updating P
   ! SYOR COMPUTES NEW P AT ALL MESH POINTS.
   ! CALLED BY - SOLVE.
-  subroutine SYOR(I1, I2, BIGRL, IRL, JRL)
+  subroutine SYOR(I1, I2, OUTERR, BIGRL, IRL, JRL, IERROR, JERROR, ERROR)
     use common_data, only: P, X, IUP, IDOWN, ILE, ITE
     use common_data, only: JMIN, JMAX, JUP, JLOW, JTOP, JBOT
-    use common_data, only: AK, ERROR, IERROR, JERROR
+    use common_data, only: AK
     use common_data, only: CXL, CXC, CXR, CXXL, CXXC, CXXR, C1
-    use common_data, only: CYYC, CYYD, CYYU, DIAG, RHS, SUB, SUP, IVAL
+    use common_data, only: CYYC, CYYD, CYYU, IVAL
     use common_data, only: CYYBUC, CYYBUU, CYYBLC, CYYBLD, FXUBC, FXLBC
-    use common_data, only: PJUMP, FCR, EPS, WI
-    use common_data, only: EMU, POLD, OUTERR
+    use common_data, only: PJUMP, FCR, EPS
     use common_data, only: N_MESH_POINTS
+    use solver_module, only: DIAG, RHS
     use solver_module, only: BCEND
     implicit none
-    integer, intent(inout) :: I1, I2
-    real, intent(out) :: BIGRL  ! Maximum residual value
+    integer, intent(inout) :: I1, I2  ! Indices for potential values
+    logical, intent(inout) :: OUTERR  ! outer iteration error (logical)
+    real, intent(out) :: BIGRL        ! Maximum residual value
     integer, intent(out) :: IRL, JRL  ! Location indices of maximum residual
+    integer, intent(out) :: IERROR, JERROR  ! Location indices of maximum error
+    real, intent(out) :: ERROR              ! Maximum error
 
     integer :: I, J, K, IM2, JA, JB, ISAVE
     real :: EPSX, ARHS, DNOM, denominator
-    real, dimension(N_MESH_POINTS) :: VC, SAVE_VAR
-    real, parameter :: TOLERANCE = 1.0E-6   ! Tolerance for division by zero protection (more reasonable value)
-    
+    real :: VC(N_MESH_POINTS), SAVE_VAR(N_MESH_POINTS)
+    real :: SUB(N_MESH_POINTS), SUP(N_MESH_POINTS)
+
     BIGRL = 0.0
 
     IM2 = IUP - 1
@@ -188,30 +199,42 @@ contains
 
   ! Main iteration loop: solver, convergence, and flow updates
   subroutine SOLVE()
-    use common_data, only: MAXIT, ERROR, CVERGE, DVERGE, IPRTER, ABORT1
+    use common_data, only: MAXIT, CVERGE, DVERGE, IPRTER, ABORT1
     use common_data, only: WE, EPS, IMIN, JMIN, JMAX, IUP, IDOWN
-    use common_data, only: JTOP, JBOT, KSTEP
+    use common_data, only: JTOP, JBOT
     use common_data, only: P, Y, AK
-    use common_data, only: EMU, POLD, DCIRC, OUTERR, IERROR, JERROR
     use common_data, only: THETA, BCTYPE
-    use common_data, only: NWDGE, XSHK, THAMAX, AM1, ZETA, NVWPRT, NISHK
-    use common_data, only: WI, C1
+    use common_data, only: NWDGE
+    use common_data, only: C1
     use common_data, only: CLFACT, CMFACT, UNIT_OUTPUT
-    use math_module, only: LIFT, PITCH, VWEDGE
-    use solver_module, only: SETBC
+    use math_module, only: LIFT, PITCH
+    use solver_module, only: SETBC, VWEDGE
     implicit none
     
-    integer :: ITER, MAXITM, KK, J, I, IK, JK, JINC, N, NN, I1, I2
-    integer :: IRL, JRL  ! Location indices of maximum residual
+    integer :: ITER, MAXITM, KK, J, I, IK, JK, JINC, N, I1, I2
+    integer :: IRL = 0, JRL = 0         ! Location indices of maximum residual
+    integer :: IERROR = 0, JERROR = 0   ! Location indices of maximum error
+    integer, parameter :: NDUB = 25     ! Number of iterations between updating doublet strength
 
-    real :: BIGRL  ! Maximum residual value
+    real :: ERROR = 0.0  ! Maximum error
+    real :: DCIRC = 0.0  ! circulation change
+    real :: BIGRL = 0.0  ! Maximum residual value
     real :: WEP, CL_LOCAL, CM_LOCAL, ERCIRC, THA
-    logical :: CONVERGED
-    integer, parameter :: NDUB = 25
+    real :: AM1(2,3)     ! Mach numbers upstream of shocks
+    real :: XSHK(2,3)    ! Shock x-locations
+    real :: THAMAX(2,3)  ! Maximum wedge angles
+    real :: ZETA(2,3)    ! Wedge length scales
+    integer :: NVWPRT(2) ! Number of shocks on upper and lower surfaces
+    integer :: NISHK    ! Number of shocks
+
+    logical :: CONVERGED = .false.  ! convergence flag
+    logical :: OUTERR = .false.     ! outer iteration error
+    
     
     ! Initialize
     ABORT1 = .false.
-    CONVERGED = .false.
+    POLD = 0.0
+    EMU = 0.0
     
     ! Write header to output files
     write(UNIT_OUTPUT, '(1H1)')
@@ -259,10 +282,10 @@ contains
         if (OUTERR) BIGRL = 0.0
         
         ! Update circulation-jump boundary
-        call RECIRC()
+        call RECIRC(DCIRC)
         
         ! Perform SOR sweep
-        call SYOR(I1, I2, BIGRL, IRL, JRL)
+        call SYOR(I1, I2, OUTERR, BIGRL, IRL, JRL, IERROR, JERROR, ERROR)
         
         ! Update circulation for subsonic freestream flow
         if (AK >= 0.0 .and. BCTYPE == 1) then
@@ -287,7 +310,7 @@ contains
         
         ! Compute viscous wedge if enabled
         if (NWDGE > 0) then
-          call VWEDGE()
+          call VWEDGE(AM1, XSHK, THAMAX, ZETA, NVWPRT, NISHK)
           call SETBC(1)
         end if
         
@@ -309,10 +332,9 @@ contains
                 write(UNIT_OUTPUT, '(10X,"COMPUTED VISCOUS WEDGE QUANTITIES")')
                 
                 ! Upper surface shocks
-                NN = NVWPRT(1)
-                if (NN > 0) then
+                if (NVWPRT(1) > 0) then
                   write(UNIT_OUTPUT, '(" UPPER SHOCK",8X,"X/C",10X,"MACH NO",9X,"THETA",10X,"ZETA")')
-                  do N = 1, NN                        
+                  do N = 1, NVWPRT(1)                        
                     if (AM1(1,N) > 1.0) then
                       THA = THAMAX(1,N) * 57.29578  ! Convert to degrees
                       write(UNIT_OUTPUT, '(I9,4F15.5)') N, XSHK(1,N), AM1(1,N), THA, ZETA(1,N)
@@ -323,10 +345,9 @@ contains
                 end if
                 
                 ! Lower surface shocks
-                NN = NVWPRT(2)
-                if (NN > 0) then
+                if (NVWPRT(1) > 0) then
                   write(UNIT_OUTPUT, '(" LOWER SHOCK",8X,"X/C",10X,"MACH NO",9X,"THETA",10X,"ZETA")')
-                  do N = 1, NN                        
+                  do N = 1, NVWPRT(1)                        
                     if (AM1(2,N) > 1.0) then
                         THA = THAMAX(2,N) * 57.29578  ! Convert to degrees
                         write(UNIT_OUTPUT, '(I9,4F15.5)') N, XSHK(2,N), AM1(2,N), THA, ZETA(2,N)
@@ -383,10 +404,12 @@ contains
   ! 1.) Jump in P at trailing edge = CIRCTE
   ! 2.) Circulation for farfield boundary = CIRCFF
   ! 3.) Jump in P along slit Y=0, X > 1 by linear interpolation between CIRCTE and CIRCFF
-  subroutine RECIRC()
+  subroutine RECIRC(DCIRC)
     use common_data, only: P, X, IMAX, ITE, JUP, JLOW, CJUP, CJUP1, CJLOW, CJLOW1
-    use common_data, only: PJUMP, CIRCFF, CIRCTE, DCIRC, WCIRC, CLSET, CLFACT, KUTTA
+    use common_data, only: PJUMP, CIRCFF, WCIRC, CLSET, CLFACT, KUTTA
     implicit none
+    real, intent(out) :: DCIRC  ! circulation change
+    
     integer :: I
     real :: CTEOLD, PUP, PLOW, CIRCO, FACTOR
 
@@ -476,9 +499,9 @@ contains
   ! Updates far field boundary conditions for subsonic freestream flows.
   ! CALLED BY - SOLVE.
   subroutine RESET()
-    use common_data, only: P, IMIN, IMAX, JMIN, JMAX, JUP, KSTEP
-    use common_data, only: DUP, DDOWN, DTOP, DBOT, VUP, VDOWN, VTOP, VBOT
+    use common_data, only: P, IMIN, IMAX, JMIN, JMAX, JUP
     use common_data, only: CIRCFF, DUB, BCTYPE
+    use solver_module, only: DUP, DDOWN, DTOP, DBOT, VUP, VDOWN, VTOP, VBOT
     implicit none
     integer :: J, I, K
 

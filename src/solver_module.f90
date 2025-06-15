@@ -2,8 +2,21 @@
 ! Module for finite-difference setup and boundary condition routines
 
 module solver_module
+  use common_data, only: N_MESH_POINTS
   implicit none
-  public :: DIFCOE, SETBC, BCEND, FARFLD, ANGLE, EXTRAP
+  public :: DIFCOE, SETBC, BCEND, FARFLD
+  public :: DIAG, RHS, VWEDGE
+  public :: DTOP, DBOT, VTOP, VBOT, DUP, DDOWN, VUP, VDOWN
+
+  real :: DIAG(N_MESH_POINTS), RHS(N_MESH_POINTS)                     ! Tri-diagonal solver arrays
+  real :: ALPHA0, ALPHA1, ALPHA2, XSING, OMEGA0, OMEGA1, OMEGA2, JET  ! Far-field root parameters
+  real :: B_COEF, BETA0, BETA1, BETA2, PSI0, PSI1, PSI2               ! Vortex/doublet parameters
+  real :: WSLP(N_MESH_POINTS,2)                                       ! Viscous wedge slopes
+  real :: RTKPOR = 0.0
+
+  ! Far-field boundary arrays
+  real :: DTOP(N_MESH_POINTS), DBOT(N_MESH_POINTS), DUP(N_MESH_POINTS), DDOWN(N_MESH_POINTS)
+  real :: VTOP(N_MESH_POINTS), VBOT(N_MESH_POINTS), VUP(N_MESH_POINTS), VDOWN(N_MESH_POINTS)
 
 contains
 
@@ -124,10 +137,11 @@ contains
   subroutine SETBC(IJUMP)
     use common_data, only: IMIN, IMAX, IUP, IDOWN, JMIN, JMAX, JTOP, JBOT
     use common_data, only: ILE, ITE, FXLBC, FXUBC, FXL, FXU
-    use common_data, only: AK, ALPHA, BCTYPE, POR, KSTEP, IFOIL
-    use common_data, only: CYYBLU, CYYBUD, WSLP
+    use common_data, only: AK, ALPHA, BCTYPE, POR, IFOIL
+    use common_data, only: CYYBLU, CYYBUD
     implicit none
     integer, intent(in) :: IJUMP
+    integer, parameter :: KSTEP = 1 ! Step size for circulation-jump boundary update
     integer :: I, IF1, N, NFOIL, INT, JINT
 
     ! Set limits on I and J indices
@@ -155,8 +169,6 @@ contains
     
     ! Enter body slopes at mesh points on airfoil
     ! into arrays for body boundary conditions
-    KSTEP = 1
-    
     NFOIL = ITE - ILE + 1
     IF1 = IFOIL + KSTEP
     I = ITE + 1
@@ -180,7 +192,6 @@ contains
                           JMIN, JMAX, JTOP, JBOT, &
                           AK, RTK, &
                           XDIFF, &
-                          DIAG, RHS, &
                           CYYD, CYYU, IVAL, &
                           BCTYPE, CIRCFF, FHINV, POR, &
                           UNIT_OUTPUT
@@ -305,13 +316,9 @@ contains
 
   ! Compute far-field boundary conditions for outer boundaries
   subroutine FARFLD()
-    use common_data, only: AK, RTK, XIN, YIN, IMIN, IMAX, JMIN, JMAX
-    use common_data, only: DTOP, DBOT, DUP, DDOWN, VTOP, VBOT, VUP, VDOWN
+    use common_data, only: AK, RTK, X, Y, IMIN, IMAX, JMIN, JMAX
     use common_data, only: BCTYPE, F, H, POR, PI, TWOPI, HALFPI
-    use common_data, only: B, ALPHA0, ALPHA1, ALPHA2, BETA0, BETA1, BETA2
-    use common_data, only: PSI0, PSI1, PSI2, OMEGA0, OMEGA1, OMEGA2, JET
-    use common_data, only: XSING, FHINV, RTKPOR, UNIT_OUTPUT
-    use math_module, only: DROOTS, VROOTS
+    use common_data, only: FHINV, UNIT_OUTPUT
     implicit none
     integer :: I, J
     real :: YT, YB, XU_BC, XD_BC, YT2, YB2, XU2, XD2, COEF1, COEF2
@@ -345,7 +352,7 @@ contains
     XSING = 0.5
 
     ! Set default values for tunnel wall parameters
-    B = 0.0
+    B_COEF = 0.0
     OMEGA0 = 1.0
     OMEGA1 = 1.0
     OMEGA2 = 1.0
@@ -359,10 +366,10 @@ contains
     case (1)
       ! BCTYPE = 1: FREE AIR BOUNDARY CONDITION
       ! Set boundary ordinates
-      YT = YIN(JMAX) * RTK
-      YB = YIN(JMIN) * RTK
-      XU_BC = XIN(IMIN) - XSING
-      XD_BC = XIN(IMAX) - XSING
+      YT = Y(JMAX) * RTK
+      YB = Y(JMIN) * RTK
+      XU_BC = X(IMIN) - XSING
+      XD_BC = X(IMAX) - XSING
       YT2 = YT * YT
       YB2 = YB * YB
       XU2 = XU_BC * XU_BC
@@ -372,7 +379,7 @@ contains
 
       ! Compute doublet and vortex terms on top and bottom boundaries
       do I = IMIN, IMAX
-        XP = XIN(I) - XSING
+        XP = X(I) - XSING
         XP2 = XP * XP
         DTOP(I) = XP / (XP2 + YT2) * COEF2
         DBOT(I) = XP / (XP2 + YB2) * COEF2
@@ -382,7 +389,7 @@ contains
 
       ! Compute doublet and vortex terms on upstream and downstream boundaries
       do J = JMIN, JMAX
-        YJ = YIN(J) * RTK
+        YJ = Y(J) * RTK
         YJ2 = YJ * YJ
         DUP(J) = XU_BC / (XU2 + YJ2) * COEF2
         DDOWN(J) = XD_BC / (XD2 + YJ2) * COEF2
@@ -400,7 +407,7 @@ contains
       ! BCTYPE = 2: SOLID WALL TUNNEL
       POR = 0.0
       ! Set constants for doublet solution
-      B = 0.5
+      B_COEF = 0.5
       ALPHA0 = PI
       ALPHA1 = PI
       ALPHA2 = PI
@@ -467,8 +474,8 @@ contains
     ! for doublet and vortex (for tunnel wall cases only - BCTYPE 2,3,4,5,6)
     if (BCTYPE /= 1) then
 
-      XU_BC = (XIN(IMIN) - XSING) / (RTK * H)
-      XD_BC = (XIN(IMAX) - XSING) / (RTK * H)
+      XU_BC = (X(IMIN) - XSING) / (RTK * H)
+      XD_BC = (X(IMAX) - XSING) / (RTK * H)
 
       ! Doublet terms
       COEF1 = 0.5 / AK / H
@@ -480,9 +487,9 @@ contains
       EXARG2 = exp(ARG2 * XU_BC)
 
       do J = JMIN, JMAX
-        YJ = YIN(J) / H
-        DDOWN(J) = COEF1 * (B + OMEGA0 * cos(YJ * ARG0) * EXARG0)
-        DUP(J) = -COEF1 * ((1.0 - B) * OMEGA1 * cos(YJ * ARG1) * EXARG1 + &
+        YJ = Y(J) / H
+        DDOWN(J) = COEF1 * (B_COEF + OMEGA0 * cos(YJ * ARG0) * EXARG0)
+        DUP(J) = -COEF1 * ((1.0 - B_COEF) * OMEGA1 * cos(YJ * ARG1) * EXARG1 + &
                             OMEGA2 * cos(YJ * ARG2) * EXARG2)
       end do
 
@@ -495,7 +502,7 @@ contains
       EXARG2 = exp(ARG2 * XU_BC)
 
       do J = JMIN, JMAX
-        YJ = YIN(J) / H
+        YJ = Y(J) / H
         TERM = YJ
         if (JET == 0.0) TERM = sin(YJ * ARG0) / ARG0
         VDOWN(J) = -0.5 * (1.0 - sign(1.0, YJ) + (1.0 - JET) * PSI0 * TERM * EXARG0 + &
@@ -510,8 +517,8 @@ contains
 
   ! Compute the angle THETA at each mesh point
   subroutine ANGLE()
-    use common_data, only: IMIN, IMAX, JMIN, JMAX, XIN, YIN, RTK
-    use common_data, only: XSING, THETA, PI, TWOPI
+    use common_data, only: IMIN, IMAX, JMIN, JMAX, X, Y, RTK
+    use common_data, only: THETA, PI, TWOPI
     implicit none
     integer :: I, J
     real :: XX, YY, R, ATN, Q, R2PI
@@ -519,10 +526,10 @@ contains
     R2PI = 1.0 / TWOPI
     
     do I = IMIN, IMAX
-      XX = XIN(I) - XSING
+      XX = X(I) - XSING
       do J = JMIN, JMAX
-        YY = YIN(J) * RTK
-        R = sqrt(YIN(J)**2 + XX*XX)
+        YY = Y(J) * RTK
+        R = sqrt(Y(J)**2 + XX*XX)
         ATN = atan2(YY, XX)
         Q = PI - sign(PI, YY)
         THETA(J,I) = -(ATN + Q) * R2PI
@@ -532,60 +539,319 @@ contains
 
   end subroutine ANGLE
 
-  ! Compute P at point (XP,YP) using far-field solution for subsonic flow
-  ! This subroutine extrapolates the potential P at coordinates (XP,YP) using
-  ! far-field solutions when new mesh points are outside the range of old mesh points
-  ! during restart interpolation. Called by GUESSP during restart operations.
-  subroutine EXTRAP(XP, YP, PNEW)
-    ! COMPUTE P AT X, YP USING FAR FIELD SOLUTION ! FOR SUBSONIC FLOW
-    ! CALLED BY - GUESSP.
-    use common_data, only: AK, DUB, RTK, BCTYPE, CIRCFF
-    use common_data, only: F, H, PI, TWOPI
-    use common_data, only: B, BETA0, BETA2, PSI0, PSI2
-    use common_data, only: ALPHA0, ALPHA1, XSING, OMEGA0, OMEGA1, JET
+  ! Computes Murman or Yoshihara viscous wedge and modifies slope conditions
+  ! to account for jump in displacement thickness due to shock/boundary layer interaction
+  subroutine VWEDGE(AM1, XSHK, THAMAX, ZETA, NVWPRT, NISHK)
+    use common_data, only: X, ILE, ITE
+    use common_data, only: JUP, JLOW
+    use common_data, only: GAM1, XDIFF
+    use common_data, only: DELTA
+    use common_data, only: SONVEL
+    use common_data, only: NWDGE, WCONST, REYNLD
+    use math_module, only: PX, EMACH1, FINDSK
     implicit none
-    real, intent(in) :: XP, YP    ! Coordinates where P is to be computed
-    real, intent(out) :: PNEW     ! Computed potential value    ! Local variables
-    real :: XI_VAR, ETA_VAR, TERM, ARG1, ARG2, YP_local
-    
-    if (BCTYPE == 1) then
-        ! FREE AIR BOUNDARY CONDITION
-        YP_local = YP
-        if (abs(YP_local) < 1.0E-6) YP_local = -1.0E-6
-          XI_VAR = XP - XSING
-        ETA_VAR = YP_local * RTK
-        
-        PNEW = -CIRCFF / TWOPI * (atan2(ETA_VAR, XI_VAR) + PI - sign(PI, ETA_VAR)) + &
-               DUB / TWOPI / RTK * (XI_VAR / (XI_VAR*XI_VAR + ETA_VAR*ETA_VAR))
 
-    else
-        ! TUNNEL WALL BOUNDARY CONDITION (all other BCTYPE values)
-        ETA_VAR = YP / H
-        XI_VAR = (XP - XSING) / (H * RTK)
-        
-        if (XI_VAR >= 0.0) then
-            ! XP is downstream of airfoil
-            TERM = ETA_VAR
-            if (BCTYPE /= 3) TERM = sin(ETA_VAR * BETA0) / BETA0
-            
-            PNEW = -0.5 * CIRCFF * (1.0 - sign(1.0, ETA_VAR) + &
-                   (1.0 - JET) * PSI0 * TERM * exp(-BETA0 * XI_VAR)) + &
-                   DUB * 0.5 / (AK * H) * (B + OMEGA0 * cos(ETA_VAR * ALPHA0) * &
-                   exp(-ALPHA0 * XI_VAR))
+    real , intent(out) :: AM1(2,3)      ! Mach numbers upstream of shocks
+    real , intent(out) :: XSHK(2,3)     ! Shock x-locations
+    real , intent(out) :: THAMAX(2,3)   ! Maximum wedge angles
+    real , intent(out) :: ZETA(2,3)     ! Wedge length scales
+    integer , intent(out) :: NVWPRT(2)  ! Number of shocks on upper and lower surfaces
+    integer , intent(out) :: NISHK      ! Number of shocks
+
+    integer :: I, J, N, M, ISK, ISK3, ISK1, ISTART, JMP
+    real :: SIGN, U, V1, AM1SQ, REYX, CF, DSTAR1, DXS, AETA, XEND
+
+    ! intialization
+    AM1 = 0.0
+    XSHK = 0.0
+    THAMAX = 0.0
+    ZETA = 0.0
+    NVWPRT = 0
+    NISHK = 0
+
+    ! Zero out previous wedge slopes
+    do J = 1, 2
+      do I = ILE, ITE
+        WSLP(I,J) = 0.0
+      end do
+    end do
+    
+    SIGN = 1.0
+    N = 1
+    ISTART = ILE
+    JMP = 0
+    
+    ! Locate shock on upper surface and compute wedge if shock exists
+    M = 1
+    
+    do while (M <= 2)
+      call FINDSK(ISTART, ITE, merge(JUP, JLOW, M==1), ISK)
+      if (ISK < 0) then
+        if (M == 1) then
+          ! Move to lower surface
+          N = 1
+          ISTART = ILE
+          SIGN = -SIGN
+          M = 2
+          cycle
         else
-            ! XP is upstream of airfoil
-            TERM = 0.0
-            if (JET /= 0.0) TERM = JET * ETA_VAR / (1.0 + F)
-            
-            ARG1 = PI - ALPHA1
-            ARG2 = PI - BETA2
-            
-            PNEW = -0.5 * CIRCFF * (1.0 - TERM - PSI2 * sin(ETA_VAR * ARG2) / ARG2 * &
-                   exp(ARG2 * XI_VAR)) - 0.5 * DUB / (AK * H) * &
-                   ((1.0 - B) * OMEGA1 * cos(ETA_VAR * ARG1) * exp(XI_VAR * ARG1))
+          exit  ! No more shocks
         end if
+      end if
+      
+      NISHK = NISHK + 1
+      NVWPRT(M) = NVWPRT(M) + 1
+      
+      ! Compute X position of shock by interpolation
+      V1 = PX(ISK-1, merge(JUP, JLOW, M==1))
+      XSHK(M,N) = X(ISK-1) + (SONVEL - V1) / ((PX(ISK, merge(JUP, JLOW, M==1)) - V1) * XDIFF(ISK))
+      
+      ! Compute flow properties 3 points upstream
+      ISK3 = ISK - 3
+      U = PX(ISK3, merge(JUP, JLOW, M==1))
+      AM1(M,N) = EMACH1(U)
+      AM1SQ = AM1(M,N) * AM1(M,N)
+      
+      if (AM1SQ <= 1.0) then
+        JMP = 1
+
+      else
+        THAMAX(M,N) = WANGLE(AM1SQ, NWDGE, GAM1) * SIGN
+        
+        ! NWDGE = 1, Murman wedge
+        if (NWDGE == 1) then
+          ! Murman wedge
+          REYX = REYNLD * XSHK(M,N)
+          CF = 0.02666 / (REYX**0.139)
+          DSTAR1 = 0.01738 * REYX**0.861 / REYNLD
+          
+          if (N > 1 .and. JMP == 0) then
+            DXS = XSHK(M,N) - XSHK(M,N-1)
+            if (DXS < ZETA(M,N-1)) then
+              AETA = DXS / ZETA(M,N-1)
+              DSTAR1 = DXS * THAMAX(M,N-1) * (1.0 + AETA * (AETA/3.0 - 1.0))
+            else
+              DSTAR1 = ZETA(M,N-1) * THAMAX(M,N-1) / 3.0
+            end if
+          end if
+          
+          JMP = 0
+          ZETA(M,N) = WCONST * sqrt((AM1SQ - 1.0) / CF) * DSTAR1
+          
+          ! Compute wedge slopes
+          XEND = XSHK(M,N) + ZETA(M,N)
+          do I = ISK, ITE
+            if (X(I) >= XEND) exit
+            AETA = (X(I) - XSHK(M,N)) / ZETA(M,N)
+            WSLP(I,M) = THAMAX(M,N) * (1.0 - AETA)**2 / DELTA
+          end do
+
+        ! NWDGE = 2, Yoshihara wedge
+        else if (NWDGE == 2) then
+          ! Yoshihara wedge
+          ISK1 = ISK - 1
+          do I = ISK1, ISK
+            WSLP(I,M) = THAMAX(M,N) / DELTA
+          end do
+        end if
+        
+      end if
+      
+      ! Check for additional shock on surface
+      N = N + 1
+      if (N >= 4) then
+        if (M == 1) then
+          ! Move to lower surface
+          N = 1
+          ISTART = ILE
+          SIGN = -SIGN
+          M = 2
+        else
+          exit
+        end if
+      else
+        ISTART = ISK + 2
+      end if
+    end do
+
+  end subroutine VWEDGE
+
+  ! Compute wedge angle for viscous correction
+  function WANGLE(AM2, NW, G) result(wedge_angle)
+    implicit none
+    real, intent(in) :: AM2, G
+    integer, intent(in) :: NW
+    real :: wedge_angle ! Wedge angle
+    real :: AM3, AM4, AM7, RM, RS, S2TM, S2TS, TM, TS, TTM, TTS, TDM, TDS
+    
+    if (NW == 1) then
+      ! Murman wedge
+      wedge_angle = 4.0 * ((AM2 - 1.0) / 3.0)**1.5 / G
+    else
+      ! Yoshihara wedge
+      AM3 = 3.0 * AM2
+      AM4 = 4.0 * AM2
+      AM7 = 7.0 * AM2
+      RM = sqrt(3.0 * (AM3 * AM2 + AM4 + 20.0))
+      RS = sqrt(3.0 * (AM3 * AM2 - AM4 + 13.0))
+      S2TM = (AM3 - 5.0 + RM) / AM7
+      S2TS = (AM3 - 2.0 + RS) / AM7
+      TM = asin(sqrt(S2TM))
+      TS = asin(sqrt(S2TS))
+      TTM = tan(TM)
+      TTS = tan(TS)
+      TDM = 5.0 * (AM2 * S2TM - 1.0) / (TTM * (5.0 + AM2 * (6.0 - 5.0 * S2TM)))
+      TDS = 5.0 * (AM2 * S2TS - 1.0) / (TTS * (5.0 + AM2 * (6.0 - 5.0 * S2TS)))
+      wedge_angle = 0.5 * (atan(TDM) + atan(TDS))
+    end if
+  end function WANGLE
+
+  ! Compute constants ALPHA0, ALPHA1, ALPHA2, OMEGA0, OMEGA1, OMEGA2
+  ! Used in formula for doublet in slotted wind tunnel with subsonic freestream
+  subroutine DROOTS
+    use common_data, only: F, HALFPI, PI, TWOPI
+    use math_module, only: report_convergence_error
+    implicit none
+    real :: ERROR_LOCAL, TEMP, Q, DALPHA
+    integer :: I
+    logical :: converged
+    integer :: MAX_ITERATIONS = 100
+    
+    ERROR_LOCAL = 0.00001
+    
+    ! Compute ALPHA0
+    ALPHA0 = 0.0
+    converged = .false.
+    do I = 1, MAX_ITERATIONS
+      TEMP = ALPHA0
+      Q = F*TEMP - RTKPOR
+      ALPHA0 = HALFPI - atan(Q)
+      DALPHA = abs(ALPHA0 - TEMP)
+      if (DALPHA < ERROR_LOCAL) then
+        converged = .true.
+        exit
+      end if
+    end do
+    if (.not. converged) then
+      call report_convergence_error('DROOTS', 'ALPHA', 0)
     end if
     
-  end subroutine EXTRAP
+    ! Compute ALPHA1
+    ALPHA1 = 0.0
+    converged = .false.
+    do I = 1, MAX_ITERATIONS
+      TEMP = ALPHA1
+      Q = F*(TEMP - PI) - RTKPOR
+      ALPHA1 = HALFPI - atan(Q)
+      DALPHA = abs(ALPHA1 - TEMP)
+      if (DALPHA < ERROR_LOCAL) then
+        converged = .true.
+        exit
+      end if
+    end do
+    if (.not. converged) then
+      call report_convergence_error('DROOTS', 'ALPHA', 1)
+    end if
+    
+    ! Compute ALPHA2
+    ALPHA2 = 0.0
+    converged = .false.
+    do I = 1, MAX_ITERATIONS
+      TEMP = ALPHA2
+      Q = F*(TEMP - TWOPI) - RTKPOR
+      ALPHA2 = HALFPI - atan(Q)
+      DALPHA = abs(ALPHA2 - TEMP)
+      if (DALPHA < ERROR_LOCAL) then
+        converged = .true.
+        exit
+      end if
+    end do
+    if (.not. converged) then
+      call report_convergence_error('DROOTS', 'ALPHA', 2)
+    end if
+    
+    ! Compute OMEGA0, OMEGA1, OMEGA2
+    TEMP = 1.0 / tan(ALPHA0)
+    OMEGA0 = 1.0 / (1.0 + F/(1.0 + TEMP*TEMP))
+    TEMP = 1.0 / tan(ALPHA1)
+    OMEGA1 = 1.0 / (1.0 + F/(1.0 + TEMP*TEMP))
+    TEMP = 1.0 / tan(ALPHA2)
+    OMEGA2 = 1.0 / (1.0 + F/(1.0 + TEMP*TEMP))
+    
+  end subroutine DROOTS
+
+  ! Compute constants BETA0, BETA1, BETA2, PSI0, PSI1, PSI2
+  ! Used in formula for vortex in slotted wind tunnel with subsonic freestream
+  subroutine VROOTS
+    use common_data, only: F, PI
+    use math_module, only: report_convergence_error
+    implicit none
+    real :: ERROR_LOCAL, TEMP, Q, DBETA
+    integer :: I
+    logical :: converged
+    integer :: MAX_ITERATIONS = 100
+    
+    ERROR_LOCAL = 0.00001
+    
+    ! Calculate BETA0
+    BETA0 = 0.0
+    converged = .false.
+    do I = 1, MAX_ITERATIONS
+      TEMP = BETA0
+      Q = -F*TEMP + RTKPOR
+      BETA0 = atan(Q)
+      DBETA = abs(TEMP - BETA0)
+      if (DBETA < ERROR_LOCAL) then
+        converged = .true.
+        exit
+      end if
+    end do
+    if (.not. converged) then
+      call report_convergence_error('VROOTS', 'BETA', 0)
+    end if
+    
+    ! Calculate BETA1  
+    BETA1 = 0.0
+    converged = .false.
+    do I = 1, MAX_ITERATIONS
+      TEMP = BETA1
+      Q = -F*(TEMP + PI) + RTKPOR
+      BETA1 = atan(Q)
+      DBETA = abs(BETA1 - TEMP)
+      if (DBETA < ERROR_LOCAL) then
+        converged = .true.
+        exit
+      end if
+    end do
+    if (.not. converged) then
+      call report_convergence_error('VROOTS', 'BETA', 1)
+    end if
+    
+    ! Calculate BETA2
+    BETA2 = 0.0
+    converged = .false.
+    do I = 1, MAX_ITERATIONS
+      TEMP = BETA2
+      Q = -F*(TEMP - PI) + RTKPOR
+      BETA2 = atan(Q)
+      DBETA = abs(BETA2 - TEMP)
+      if (DBETA < ERROR_LOCAL) then
+        converged = .true.
+        exit
+      end if
+    end do
+    if (.not. converged) then
+      call report_convergence_error('VROOTS', 'BETA', 2)
+    end if
+    
+    ! Compute PSI0, PSI1, PSI2
+    TEMP = tan(BETA0)
+    PSI0 = 1.0 / (1.0 + F/(1.0 + TEMP*TEMP))
+    TEMP = tan(BETA1)
+    PSI1 = 1.0 / (1.0 + F/(1.0 + TEMP*TEMP))
+    TEMP = tan(BETA2)
+    PSI2 = 1.0 / (1.0 + F/(1.0 + TEMP*TEMP))
+    
+  end subroutine VROOTS
 
 end module solver_module

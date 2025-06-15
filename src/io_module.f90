@@ -5,6 +5,8 @@ module io_module
   use common_data
   implicit none
 
+  real :: VFACT, YFACT
+
   ! Complete namelist matching the original /INP/ namelist exactly
   namelist /INP/ AK, ALPHA, BCTYPE, CLSET, &
                   CVERGE, DELTA, DVERGE, EMACH, EPS, F, &
@@ -110,7 +112,7 @@ contains
     ! IF PHYS = .FALSE., INPUT IS ALREADY IN SCALED VARIABLES AND NO FURTHER SCALING IS DONE.
     ! CALLED BY - TSFOIL.
     use common_data, only: PHYS, DELTA, EMACH, SIMDEF
-    use common_data, only: AK, ALPHA, GAM1, RTK, YFACT, CPFACT, CLFACT, CDFACT, CMFACT, VFACT
+    use common_data, only: AK, ALPHA, GAM1, RTK, CPFACT, CLFACT, CDFACT, CMFACT
     use common_data, only: YIN, JMIN, JMAX
     use common_data, only: H, POR, SONVEL, CPSTAR, DELRT2, EMROOT, INPERR
     implicit none
@@ -444,7 +446,7 @@ contains
 
   ! Output Cp, Mach distribution on a x-line (Y=0) in Tecplot format
   subroutine OUTPUT_CP_MACH_XLINE(CL_val, CM, EM1U, EM1L)
-    use common_data, only: IMIN, IMAX, UNIT_CPXS, VFACT
+    use common_data, only: IMIN, IMAX, UNIT_CPXS
     use common_data, only: X, EMACH, CPSTAR, ALPHA
     use common_data, only: CPU, CPL
     implicit none
@@ -478,7 +480,7 @@ contains
   ! Output field in Tecplot format
   subroutine OUTPUT_FIELD()
     use common_data, only: UNIT_FIELD, X, Y, JMIN, JMAX, IMIN, IMAX, CPFACT
-    use common_data, only: EMACH, ALPHA, VFACT, N_MESH_POINTS
+    use common_data, only: EMACH, ALPHA, N_MESH_POINTS
     use common_data, only: P, IUP, IDOWN, C1, CXL, CXC, CXR
     use math_module, only: PX, EMACH1
     implicit none
@@ -553,7 +555,7 @@ contains
   ! Prints pressure coefficient and flow angle on Y=-H and Y=+H, 
   ! and plots CP along side of tabulation. 
   subroutine PRTWAL()
-    use common_data, only: P, X, Y, CPFACT, VFACT, YFACT, JMIN, JMAX, &
+    use common_data, only: P, X, Y, CPFACT, JMIN, JMAX, &
                           IUP, IDOWN, JBOT, JTOP, JTOP, JBOT, &
                           BCTYPE, CIRCFF, FHINV, POR, F, H, CPSTAR, &
                           XDIFF, UNIT_OUTPUT
@@ -696,7 +698,7 @@ contains
     use common_data, only: X, Y, IMIN, IMAX, IUP, ILE, ITE, N_MESH_POINTS
     use common_data, only: JMIN, JMAX, JUP, JLOW
     use common_data, only: AK, GAM1, CJUP, CJUP1, CJLOW, CJLOW1
-    use common_data, only: CDFACT, YFACT
+    use common_data, only: CDFACT
     use common_data, only: SONVEL, FXL, FXU
     use common_data, only: UNIT_OUTPUT, UNIT_SUMMARY
     use math_module, only: PX, PY, TRAP, FINDSK, NEWISK, DRAG
@@ -1017,7 +1019,7 @@ contains
   ! LOSS ALONG SHOCK WAVE
   ! CALLED BY - CDCOLE.
   subroutine PRTSK(Z,ARG_PARAM,L,NSHOCK,CDSK,LPRT1)
-    use common_data, only: CDFACT, GAM1, DELTA, YFACT, UNIT_OUTPUT
+    use common_data, only: CDFACT, GAM1, DELTA, UNIT_OUTPUT
     implicit none
     real, intent(in) :: Z(:), ARG_PARAM(:)
     integer, intent(in) :: L, NSHOCK, LPRT1
