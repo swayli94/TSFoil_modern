@@ -14,7 +14,7 @@ module io_module
                   RIGF, SIMDEF, WCIRC, WE, &
                   XIN, YIN, XL, YL, XU, YU, &
                   NWDGE, REYNLD, WCONST, IFLAP, DELFLP, &
-                  FLPLOC, IDLA
+                  FLPLOC
   
   ! Declare public procedures
   public :: READIN, SCALE, PRINT
@@ -107,7 +107,6 @@ contains
     !   SIMDEF = 1  COLE SCALING
     !   SIMDEF = 2  SPREITER SCALING
     !   SIMDEF = 3  KRUPP SCALING
-    !   SIMDEF = 4  USER CHOICE
     ! IF PHYS = .FALSE., INPUT IS ALREADY IN SCALED VARIABLES AND NO FURTHER SCALING IS DONE.
     ! CALLED BY - TSFOIL.
     use common_data, only: PHYS, DELTA, EMACH, SIMDEF
@@ -171,15 +170,6 @@ contains
         CDFACT = CPFACT * DELTA
         VFACT = DELTA * 57.295779
         
-      case (4)
-        ! SIMDEF = 4
-        ! THIS ADDRESS IS INACTIVE
-        ! USER MAY INSERT SCALING OF OWN CHOICE
-        ! DEFINITION FOR LOCAL MACH NUMBER MUST BE ADJUSTED
-        ! IN EMACH1.
-        write(UNIT_OUTPUT, '(A, /, A)') '1ABNORMAL STOP IN SUBROUTINE SCALE', ' SIMDEF=4 IS NOT USEABLE'
-        stop
-        
       case default
         write(UNIT_OUTPUT, '(A, /, A)') '1ABNORMAL STOP IN SUBROUTINE SCALE', ' INVALID SIMDEF VALUE'
         stop
@@ -228,44 +218,42 @@ contains
     use common_data
     use math_module, only: PITCH, LIFT
     implicit none
-    
-    ! Local variables matching original exactly
-    character(len=4) :: TPH(6), SIM(8), BCT(15), FCP(14)
-    real :: ALPHVF
-    integer :: IS, IE, I
-    
-    ! Data initialization matching original exactly
-    TPH = ['SIMI', 'LARI', 'TY  ', ' PHY', 'SICA', 'L   ']
-    SIM = ['COLE', '    ', 'SPRE', 'ITER', 'KRUP', 'P   ', 'USER', '    ']
-    BCT = ['FREE', ' AIR', '    ', 'SOLI', 'D WA', 'LL  ', 'FREE', &
-           ' JET', '    ', 'SLOT', 'TED ', 'WALL', 'PORO', 'US W', 'ALL ']
-    FCP = ['FULL', 'Y CO', 'NSER', 'VATI', 'VE. ', '    ', '    ', &
-           'NOT ', 'CONS', 'ERVA', 'TIVE', ' AT ', 'SHOC', 'K.  ']
-    
+
     ! Write page break
     write(UNIT_OUTPUT, '(1H1)')
     
     ! Print similarity/physical variables information
-    IS = 1
-    if (PHYS) IS = 4
-    IE = IS + 2
-    write(UNIT_SUMMARY, '(14H0 PRINTOUT IN ,2A4,A2,11H VARIABLES.)') (TPH(I), I=IS, IE)
+    if (PHYS) then
+        write(UNIT_SUMMARY, '(A)') '0 PRINTOUT IN PHYSICAL VARIABLES.'
+    else
+        write(UNIT_SUMMARY, '(A)') '0 PRINTOUT IN SIMILARITY VARIABLES.'
+    end if
     
     ! Print similarity parameter definition
-    IE = 2 * SIMDEF
-    IS = IE - 1
-    write(UNIT_SUMMARY, '(41H0 DEFINITION OF SIMILARITY PARAMETERS BY ,2A4)') (SIM(I), I=IS, IE)
+    if (SIMDEF == 1) then
+        write(UNIT_SUMMARY, '(A)') '0 DEFINITION OF SIMILARITY PARAMETERS BY COLE'
+    else if (SIMDEF == 2) then
+        write(UNIT_SUMMARY, '(A)') '0 DEFINITION OF SIMILARITY PARAMETERS BY SPREITER'
+    else if (SIMDEF == 3) then
+        write(UNIT_SUMMARY, '(A)') '0 DEFINITION OF SIMILARITY PARAMETERS BY KRUPP'
+    end if
     
     ! Print boundary condition information
-    IE = 3 * BCTYPE
-    IS = IE - 2
-    write(UNIT_SUMMARY, '(25H0 BOUNDARY CONDITION FOR ,3A4)') (BCT(I), I=IS, IE)
+    select case (BCTYPE)
+        case (1)
+            write(UNIT_SUMMARY, '(A)') '0 BOUNDARY CONDITION FOR FREE AIR'
+        case (2)
+            write(UNIT_SUMMARY, '(A)') '0 BOUNDARY CONDITION FOR SOLID WALL'
+        case (3)
+            write(UNIT_SUMMARY, '(A)') '0 BOUNDARY CONDITION FOR FREE JET'
+    end select
     
     ! Print difference equation information
-    IS = 8
-    if (FCR) IS = 1
-    IE = IS + 6
-    write(UNIT_SUMMARY, '(27H0 DIFFERENCE EQUATIONS ARE ,7A4)') (FCP(I), I=IS, IE)
+    if (FCR) then
+        write(UNIT_SUMMARY, '(A)') '0 DIFFERENCE EQUATIONS ARE FULLY CONSERVATIVE.'
+    else
+        write(UNIT_SUMMARY, '(A)') '0 DIFFERENCE EQUATIONS ARE NOT CONSERVATIVE AT SHOCK.'
+    end if
     
     ! Print Kutta condition information
     if (KUTTA) then
@@ -275,14 +263,13 @@ contains
     end if
     
     ! Print flow parameters
-    ALPHVF = ALPHA * VFACT
     write(UNIT_SUMMARY, '(1H0)')
     
     if (PHYS) then
       write(UNIT_SUMMARY, '(14X,6HMACH =,F12.7/13X,7HDELTA =,F12.7)') EMACH, DELTA
     end if
     
-    write(UNIT_SUMMARY, '(13X,7HALPHA =,F12.7/17X,3HK =,F12.7)') ALPHVF, AK
+    write(UNIT_SUMMARY, '(13X,7HALPHA =,F12.7/17X,3HK =,F12.7)') ALPHA * VFACT, AK
     
     if (AK > 0.0) then
       write(UNIT_SUMMARY, '(2X,18HDOUBLET STRENGTH =,F12.7)') DUB
@@ -394,13 +381,21 @@ contains
       GAM, WCIRC, MAXIT, IPRTER
     write(UNIT_OUTPUT, '(1H0,8X,3HF =,F9.5,2X,8HCVERGE =,F9.5,5X,4HNU =,I4,3X,8HSIMDEF =,I3)') &
       F, CVERGE, NU, SIMDEF
-    write(UNIT_OUTPUT, '(1H0,8X,3HH =,F9.5,2X,8HDVERGE =,F9.1,5X,4HNL =,I4)') &
-      H, DVERGE, NL
+    write(UNIT_OUTPUT, '(1H0,8X,3HH =,F9.5,2X,8HDVERGE =,F9.1,5X,4HNL =,I4,4X,7HNWDGE =,I3)') &
+      H, DVERGE, NL, NWDGE
     write(UNIT_OUTPUT, '(1H0,7X,5HWE = ,F4.2,2(1H,,F4.2))') WE
     
-    if (NWDGE == 1) write(UNIT_OUTPUT, '(1H0,15X,12HMURMAN WEDGE,5X,8HREYNLD =,E10.3,5X,8HWCONST =,F9.5)') REYNLD, WCONST
-    if (NWDGE == 2) write(UNIT_OUTPUT, '(1H0,15X,15HYOSHIHARA WEDGE)')
-    if (IFLAP /= 0) write(UNIT_OUTPUT, '(1H0,15X,17HFLAP IS DEFLECTED,F5.2,20H DEGREES FROM H.L. =,F6.3,8H TO T.E.)') DELFLP, FLPLOC
+    if (NWDGE == 1) then
+      write(UNIT_OUTPUT, '(1H0,15X,12HMURMAN WEDGE,5X,8HREYNLD =,E10.3,5X,8HWCONST =,F9.5)') REYNLD, WCONST
+    elseif (NWDGE == 2) then
+      write(UNIT_OUTPUT, '(1H0,15X,15HYOSHIHARA WEDGE)')
+    else
+      write(UNIT_OUTPUT, '(1H0,15X,8HNO WEDGE)')
+    end if
+    
+    if (IFLAP /= 0) then
+      write(UNIT_OUTPUT, '(1H0,15X,17HFLAP IS DEFLECTED,F5.2,20H DEGREES FROM H.L. =,F6.3,8H TO T.E.)') DELFLP, FLPLOC
+    end if
 
     ! Output mesh coordinates
     write(UNIT_OUTPUT, '(1H0,4X,3HXIN)')
@@ -698,12 +693,11 @@ contains
   ! Integrates around a contour enclosing the body and along all shocks inside the contour
   ! CALLED BY - PRINT.
   subroutine CDCOLE()
-    use common_data, only: X, Y, IMIN, IMAX, IUP, ILE, ITE
+    use common_data, only: X, Y, IMIN, IMAX, IUP, ILE, ITE, N_MESH_POINTS
     use common_data, only: JMIN, JMAX, JUP, JLOW
     use common_data, only: AK, GAM1, CJUP, CJUP1, CJLOW, CJLOW1
     use common_data, only: CDFACT, YFACT
     use common_data, only: SONVEL, FXL, FXU
-    use common_data, only: XI, ARG  ! Working arrays
     use common_data, only: UNIT_OUTPUT, UNIT_SUMMARY
     use math_module, only: PX, PY, TRAP, FINDSK, NEWISK, DRAG
     implicit none
@@ -714,6 +708,7 @@ contains
     real :: GAM123, U, V, UU, UL, SUM, CDSK, CDWAVE, CDC, CD
     real :: CDUP, CDTOP, CDBOT, CDDOWN, CDBODY
     real :: XU_LOC, XD_LOC, YT_LOC, YB_LOC, ULE
+    real :: XI(N_MESH_POINTS), ARG(N_MESH_POINTS)
     
     GAM123 = GAM1 * 2.0 / 3.0
     

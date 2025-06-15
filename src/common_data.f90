@@ -32,14 +32,13 @@ module common_data
   public :: DIAG, RHS, SUB, SUP
   public :: CIRCFF, CIRCTE
   public :: PJUMP, FCR, KUTTA, CVERGE, ERROR, IERROR, JERROR, MAXIT, IPRTER
-  public :: CLSET, IDLA
+  public :: CLSET
   public :: EPS, WE, NWDGE, REYNLD, WCONST, WSLP, WI
   public :: XSHK, THAMAX, AM1, ZETA, NVWPRT, NISHK
   public :: DVERGE, GAM, POR, FHINV, WCIRC
   public :: YFREE, YTUN, JMXF, JMXT
   public :: B, BETA0, BETA1, BETA2, PSI0, PSI1, PSI2
   public :: ALPHA0, ALPHA1, ALPHA2, XSING, OMEGA0, OMEGA1, OMEGA2, JET
-  public :: XI, ARG  ! Working arrays for DRAG function
   public :: THETA  ! COM33: angle array for each mesh point
   public :: EMU, POLD, DCIRC, OUTERR  ! Missing variables from COM18
   public :: initialize_common, INPERR
@@ -125,8 +124,10 @@ module common_data
   real :: CDFACT, CLFACT, CMFACT, CPFACT, CPSTAR
   
   ! COM14: Kutta and circulation flags
-  real :: CLSET, WCIRC
-  logical :: FCR, KUTTA
+  real :: CLSET     ! Lift coefficient setpoint
+  real :: WCIRC     ! Weight for circulation jump at trailing edge (0.0-1.0)
+  logical :: FCR    ! Whether difference equations are fully conservative
+  logical :: KUTTA  ! Whether Kutta condition is enforced
   
   ! COM15: vortex/doublet parameters
   real :: B, BETA0, BETA1, BETA2, PSI0, PSI1, PSI2
@@ -141,10 +142,10 @@ module common_data
   ! COM18: error tracking and diagnostics
   real :: ERROR
   integer :: IERROR, JERROR
-  real :: EMU(N_MESH_POINTS,2)   ! Missing from COM18 - circulation factors
-  real :: POLD(N_MESH_POINTS,2)  ! Missing from COM18 - old pressure values  
-  real :: DCIRC        ! Missing from COM18 - circulation change
-  logical :: OUTERR    ! Missing from COM18 - outer iteration error (logical)
+  real :: EMU(N_MESH_POINTS,2)   ! circulation factors
+  real :: POLD(N_MESH_POINTS,2)  ! old potential values  
+  real :: DCIRC        ! circulation change
+  logical :: OUTERR    ! outer iteration error (logical)
   
   ! COM19: jump arrays and pressure jump
   real :: PJUMP(N_MESH_POINTS)
@@ -165,9 +166,8 @@ module common_data
   real :: DTOP(N_MESH_POINTS), DBOT(N_MESH_POINTS), DUP(N_MESH_POINTS), DDOWN(N_MESH_POINTS)
   real :: VTOP(N_MESH_POINTS), VBOT(N_MESH_POINTS), VUP(N_MESH_POINTS), VDOWN(N_MESH_POINTS)
   
-  ! COM25: plot arrays
-  real :: CPU(N_MESH_POINTS), CPL(N_MESH_POINTS) ! Pressure coefficient arrays on X-line (Y=0)
-  integer :: IDLA
+  ! COM25: pressure coefficient arrays on X-line (Y=0)
+  real :: CPU(N_MESH_POINTS), CPL(N_MESH_POINTS)
   
   ! COM27: transonic similarity state
   real :: CL, DELTA, DELRT2, EMACH, EMROOT, EPS
@@ -178,9 +178,6 @@ module common_data
   integer :: BCTYPE
   real :: CIRCFF, FHINV, POR, CIRCTE
   
-  ! COM30: general workspace arrays  
-  real :: XI(N_MESH_POINTS), ARG(N_MESH_POINTS) ! Additional variables needed by other modules
-
   ! COM33: angle array for each mesh point
   real :: THETA(N_MESH_POINTS,N_MESH_POINTS)
   
@@ -287,7 +284,7 @@ contains
     NL = 75     ! Number of upper surface grid points (match default XL, YL)
 
     MAXIT = 1000  ! Maximum number of iterations
-    IPRTER = 10  ! Print interval for convergence history
+    IPRTER = 100  ! Print interval for convergence history
 
     ! Logical flags (from BLOCK DATA)
     PHYS = .true.
@@ -308,7 +305,6 @@ contains
     REYNLD = 4.0E+06
     WCONST = 4.0
     NWDGE = 0
-    IDLA = 0
 
     ! Initialize boundary condition identifiers
     POR = 0.0

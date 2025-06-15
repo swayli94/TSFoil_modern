@@ -306,7 +306,7 @@ contains
             ! Output viscous wedge quantities if enabled
             if (NWDGE > 0) then
                 
-              write(UNIT_OUTPUT, '(10X,"COMPUTED VISCOUS WEDGE QUANTITIES")')
+                write(UNIT_OUTPUT, '(10X,"COMPUTED VISCOUS WEDGE QUANTITIES")')
                 
                 ! Upper surface shocks
                 NN = NVWPRT(1)
@@ -421,14 +421,15 @@ contains
   ! For lifting free air flows, doublet strength is set equal to model volume.
   ! For other flows, the nonlinear contribution is added.
   subroutine REDUB()
-    use common_data, only: P, Y, IMIN, IMAX, JMIN, JMAX
-    use common_data, only: DUB, GAM1, XDIFF, BCTYPE, CIRCFF, VOL, XI, ARG
+    use common_data, only: P, Y, IMIN, IMAX, JMIN, JMAX, N_MESH_POINTS
+    use common_data, only: DUB, GAM1, XDIFF, BCTYPE, CIRCFF, VOL
     use math_module, only: TRAP
     implicit none
     
     ! Local variables
     integer :: I, J, IEND, NARG
     real :: DBLSUM, SUM, TEMP
+    real :: XI(N_MESH_POINTS), ARG(N_MESH_POINTS)
     
     ! For lifting free air flows with circulation, set doublet strength equal to model volume
     if (BCTYPE == 1 .and. abs(CIRCFF) >= 0.0001) then

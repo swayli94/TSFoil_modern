@@ -229,7 +229,7 @@ contains
   
   ! Function EMACH1 computes local similarity parameter or local Mach number
   function EMACH1(U) result(result_emach)
-    use common_data, only: AK, GAM1, PHYS, DELRT2, SIMDEF, EMROOT, EMACH
+    use common_data, only: AK, GAM1, PHYS, DELRT2, SIMDEF, EMROOT, EMACH, UNIT_OUTPUT
     implicit none
     real, intent(in) :: U
     real :: result_emach
@@ -243,15 +243,20 @@ contains
       result_emach = AK1
     else
       ! Compute value of local Mach number and return
-      ! Cole scaling
-      ARG = DELRT2*AK1
-      ! Spreiter scaling  
-      if (SIMDEF == 2) ARG = ARG*EMROOT*EMROOT
-      ! Krupp scaling
-      if (SIMDEF == 3) ARG = ARG*EMACH
-      ARG = 1.0 - ARG
+      if (SIMDEF == 1) then ! Cole scaling
+        ARG = 1.0 - DELRT2*AK1
+      else if (SIMDEF == 2) then ! Spreiter scaling
+        ARG = 1.0 - EMROOT*EMROOT*DELRT2*AK1
+      else if (SIMDEF == 3) then ! Krupp scaling
+        ARG = 1.0 - EMACH*DELRT2*AK1
+      else
+        write(UNIT_OUTPUT, '(A, /, A, I3)') '1ABNORMAL STOP IN SUBROUTINE EMACH1', ' SIMDEF not supported', SIMDEF
+        stop
+      end if
+
       result_emach = 0.0
       if (ARG > 0.0) result_emach = sqrt(ARG)
+      
     end if
   end function EMACH1
   
@@ -259,11 +264,12 @@ contains
   ! U*V around airfoil using trapezoidal rule.
   function DRAG(CDFACT_in) result(result_drag)
     use common_data, only: X, ILE, ITE, JUP, JLOW, CJUP, CJUP1, CJLOW, CJLOW1
-    use common_data, only: FXU, FXL, XI, ARG
+    use common_data, only: FXU, FXL, N_MESH_POINTS
     implicit none
     real, intent(in) :: CDFACT_in
     real :: result_drag
     real :: PXUP, PXLOW, SUM
+    real :: XI(N_MESH_POINTS), ARG(N_MESH_POINTS)
     integer :: K, I
     
     K = 1
@@ -562,10 +568,11 @@ contains
       
       if (AM1SQ <= 1.0) then
         JMP = 1
+
       else
         THAMAX(M,N) = WANGLE(AM1SQ, NWDGE, GAM1) * SIGN
         
-        ! If NWDGE = 2, compute Yoshihara wedge
+        ! NWDGE = 1, Murman wedge
         if (NWDGE == 1) then
           ! Murman wedge
           REYX = REYNLD * XSHK(M,N)
@@ -592,6 +599,8 @@ contains
             AETA = (X(I) - XSHK(M,N)) / ZETA(M,N)
             WSLP(I,M) = THAMAX(M,N) * (1.0 - AETA)**2 / DELTA
           end do
+
+        ! NWDGE = 2, Yoshihara wedge
         else if (NWDGE == 2) then
           ! Yoshihara wedge
           ISK1 = ISK - 1
@@ -599,6 +608,7 @@ contains
             WSLP(I,M) = THAMAX(M,N) / DELTA
           end do
         end if
+        
       end if
       
       ! Check for additional shock on surface

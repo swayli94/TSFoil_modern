@@ -678,7 +678,8 @@ if __name__ == "__main__":
     tsfoil.set_config({
             "ALPHA": 0.5,
             "EMACH": 0.75,
-            "MAXIT": 9999
+            "MAXIT": 9999,
+            'NWDGE': 0
         })
     
     # Single case execution
