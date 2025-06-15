@@ -10,30 +10,32 @@ contains
   ! Perform one SOR sweep computing residuals and updating P
   ! SYOR COMPUTES NEW P AT ALL MESH POINTS.
   ! CALLED BY - SOLVE.
-  subroutine SYOR()
+  subroutine SYOR(I1, I2, BIGRL, IRL, JRL)
     use common_data, only: P, X, IUP, IDOWN, ILE, ITE
-    use common_data, only: JMIN, JMAX, JUP, JLOW, JTOP, JBOT, J1, J2
+    use common_data, only: JMIN, JMAX, JUP, JLOW, JTOP, JBOT
     use common_data, only: AK, ERROR, IERROR, JERROR
     use common_data, only: CXL, CXC, CXR, CXXL, CXXC, CXXR, C1
     use common_data, only: CYYC, CYYD, CYYU, DIAG, RHS, SUB, SUP, IVAL
     use common_data, only: CYYBUC, CYYBUU, CYYBLC, CYYBLD, FXUBC, FXLBC
     use common_data, only: PJUMP, FCR, EPS, WI
-    use common_data, only: EMU, POLD, I1, I2, OUTERR, BIGRL, IRL, JRL
+    use common_data, only: EMU, POLD, OUTERR
     use common_data, only: N_MESH_POINTS
     use solver_module, only: BCEND
     implicit none
+    integer, intent(inout) :: I1, I2
+    real, intent(out) :: BIGRL  ! Maximum residual value
+    integer, intent(out) :: IRL, JRL  ! Location indices of maximum residual
+
     integer :: I, J, K, IM2, JA, JB, ISAVE
     real :: EPSX, ARHS, DNOM, denominator
     real, dimension(N_MESH_POINTS) :: VC, SAVE_VAR
     real, parameter :: TOLERANCE = 1.0E-6   ! Tolerance for division by zero protection (more reasonable value)
     
+    BIGRL = 0.0
+
     IM2 = IUP - 1
     if (AK < 0.0) IM2 = IUP - 2
-    
-    ! Set J1 and J2 exactly as original
-    J1 = JBOT + 1
-    J2 = JTOP - JBOT
-    
+        
     do I = IUP, IDOWN
         EPSX = EPS / ((X(I) - X(I-1))**2)
         
@@ -137,7 +139,7 @@ contains
         SAVE_VAR(JBOT) = SUB(JBOT) * DNOM
         RHS(JBOT) = RHS(JBOT) * DNOM
 
-        do J = J1, JTOP
+        do J = JBOT + 1, JTOP
             denominator = DIAG(J) - SUP(J)*SAVE_VAR(J-1)
             DNOM = 1.0 / denominator
             SAVE_VAR(J) = SUB(J) * DNOM
@@ -146,7 +148,7 @@ contains
         end do
         
         ! Back-substitution with floating-point protection
-        do K = 1, J2
+        do K = 1, JTOP - JBOT
             J = JTOP - K
             RHS(J) = RHS(J) - SAVE_VAR(J) * RHS(J+1)
             if (abs(RHS(J)) < 1.0E-30) RHS(J) = 0.0
@@ -190,8 +192,7 @@ contains
     use common_data, only: WE, EPS, IMIN, JMIN, JMAX, IUP, IDOWN
     use common_data, only: JTOP, JBOT, KSTEP
     use common_data, only: P, Y, AK
-    use common_data, only: EMU, POLD, DCIRC, OUTERR, I1, I2, IERROR, JERROR
-    use common_data, only: BIGRL, IRL, JRL
+    use common_data, only: EMU, POLD, DCIRC, OUTERR, IERROR, JERROR
     use common_data, only: THETA, BCTYPE
     use common_data, only: NWDGE, XSHK, THAMAX, AM1, ZETA, NVWPRT, NISHK
     use common_data, only: WI, C1
@@ -200,7 +201,10 @@ contains
     use solver_module, only: SETBC
     implicit none
     
-    integer :: ITER, MAXITM, KK, J, I, IK, JK, JINC, N, NN
+    integer :: ITER, MAXITM, KK, J, I, IK, JK, JINC, N, NN, I1, I2
+    integer :: IRL, JRL  ! Location indices of maximum residual
+
+    real :: BIGRL  ! Maximum residual value
     real :: WEP, CL_LOCAL, CM_LOCAL, ERCIRC, THA
     logical :: CONVERGED
     integer, parameter :: NDUB = 25
@@ -225,6 +229,7 @@ contains
     
     ! Write iteration header
     write(UNIT_OUTPUT, '(/,"  ITER",5X,"CL",8X,"CM",4X,"IERR",1X,"JERR",4X,"ERROR",4X,"IRL",2X,"JRL",4X,"BIGRL",8X,"ERCIRC")')
+    write(*, '(/,"  ITER",5X,"CL",8X,"CM",4X,"IERR",1X,"JERR",4X,"ERROR",4X,"IRL",2X,"JRL",4X,"BIGRL",8X,"ERCIRC")')
 
     ! Main iteration loop
     do ITER = 1, MAXITM
@@ -257,7 +262,7 @@ contains
         call RECIRC()
         
         ! Perform SOR sweep
-        call SYOR()
+        call SYOR(I1, I2, BIGRL, IRL, JRL)
         
         ! Update circulation for subsonic freestream flow
         if (AK >= 0.0 .and. BCTYPE == 1) then

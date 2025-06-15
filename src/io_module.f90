@@ -6,12 +6,12 @@ module io_module
   implicit none
 
   ! Complete namelist matching the original /INP/ namelist exactly
-  namelist /INP/ AK, ALPHA, AMESH, BCFOIL, BCTYPE, CLSET, &
+  namelist /INP/ AK, ALPHA, BCTYPE, CLSET, &
                   CVERGE, DELTA, DVERGE, EMACH, EPS, F, &
                   FCR, GAM, H, IMAXI, IMIN, &
                   IPRTER, JMAXI, JMIN, KUTTA, MAXIT, NL, &
-                  NU, PHYS, POR, PRTFLO, PSAVE, &
-                  PSTART, RIGF, SIMDEF, WCIRC, WE, &
+                  NU, PHYS, POR, &
+                  RIGF, SIMDEF, WCIRC, WE, &
                   XIN, YIN, XL, YL, XU, YU, &
                   NWDGE, REYNLD, WCONST, IFLAP, DELFLP, &
                   FLPLOC, IDLA
@@ -47,14 +47,11 @@ contains
   ! The original READIN is designed to be called once per case from main program
   subroutine READIN()
     use common_data
-    use mesh_module, only: ISLIT, JSLIT, CKMESH, AYMESH
+    use mesh_module, only: setup_mesh
     implicit none    
-    integer :: J_VAR, IM1, JM1, IDX, JDX, I_ITER, J_ITER
-    real :: TERM, HTM, HTP, YS, YE
-    character(len=100) :: IN_FILENAME
+    character(len=100) :: IN_FILENAME, TITLE
     integer :: ios
-    
-    
+        
     ! Handle command line argument for input file
     call get_command_argument(1, IN_FILENAME)
 
@@ -70,14 +67,14 @@ contains
     call open_output_files()
     
     ! Read title card
-    read(UNIT_INPUT, '(20A4)', iostat=ios) TITLE
+    read(UNIT_INPUT, '(A)', iostat=ios) TITLE
     if (ios /= 0) then
         write(UNIT_OUTPUT, '(A,I0)') 'Error reading title card. IOSTAT = ', ios
         write(UNIT_OUTPUT, '(A)') 'IOSTAT < 0: End of file reached.'
         write(UNIT_OUTPUT, '(A)') 'IOSTAT > 0: Read error.'
         stop
     end if
-    write(UNIT_OUTPUT, '(1H1,4X,20A4)') TITLE
+    write(UNIT_OUTPUT, '(1H1,4X,A)') trim(TITLE)
 
     ! Read namelist input
     read(UNIT_INPUT, INP, iostat=ios)
@@ -90,132 +87,16 @@ contains
     ! Set AK=0 for physical coordinates
     if (PHYS) AK = 0.0
 
-    ! Echo input parameters to output file with exact original format strings
-    write(UNIT_OUTPUT, '(1H0,4X,7HEMACH =,F9.5,5X,5HPOR =,F9.5,3X,6HIMIN =,I4,3X,8HBCTYPE =,I3,5X,8HAMESH = ,L1)') &
-      EMACH, POR, IMIN, BCTYPE, AMESH
-    write(UNIT_OUTPUT, '(1H0,4X,7HDELTA =,F9.5,3X,7HCLSET =,F9.5,2X,7HIMAXI =,I4,3X,8HBCFOIL =,I3,6X,7HPHYS = ,L1)') &
-      DELTA, CLSET, IMAXI, BCFOIL, PHYS    
-    write(UNIT_OUTPUT, '(1H0,4X,7HALPHA =,F9.5,5X,5HEPS =,F9.5,3X,6HJMIN =,I4,3X,8HPSTART =,I3,5X,8HPSAVE = ,L1)') &
-      ALPHA, EPS, JMIN, PSTART, PSAVE
-    write(UNIT_OUTPUT, '(1H0,7X,4HAK =,F9.5,4X,6HRIGF =,F9.5,2X,7HJMAXI =,I4,3X,8HPRTFLO =,I3,5X,8HKUTTA = ,L1)') &
-      AK, RIGF, JMAXI, PRTFLO, KUTTA
-    write(UNIT_OUTPUT, '(1H0,6X,5HGAM =,F9.5,3X,7HWCIRC =,F9.5,2X,7HMAXIT =,I4,3X,8HIPRTER =,I3,7X,6HFCR = ,L1)') &
-      GAM, WCIRC, MAXIT, IPRTER, FCR
-    write(UNIT_OUTPUT, '(1H0,8X,3HF =,F9.5,2X,8HCVERGE =,F9.5,5X,4HNU =,I4,3X,8HSIMDEF =,I3)') &
-      F, CVERGE, NU, SIMDEF
-    write(UNIT_OUTPUT, '(1H0,8X,3HH =,F9.5,2X,8HDVERGE =,F9.1,5X,4HNL =,I4)') &
-      H, DVERGE, NL
-    write(UNIT_OUTPUT, '(1H0,7X,5HWE = ,F4.2,2(1H,,F4.2))') WE
-    
-    if (NWDGE == 1) write(UNIT_OUTPUT, '(1H0,15X,12HMURMAN WEDGE,5X,8HREYNLD =,E10.3,5X,8HWCONST =,F9.5)') REYNLD, WCONST
-    if (NWDGE == 2) write(UNIT_OUTPUT, '(1H0,15X,15HYOSHIHARA WEDGE)')
-    if (IFLAP /= 0) write(UNIT_OUTPUT, '(1H0,15X,17HFLAP IS DEFLECTED,F5.2,20H DEGREES FROM H.L. =,F6.3,8H TO T.E.)') DELFLP, FLPLOC
-    
-    ! Handle automatic mesh generation or YIN initialization
-    if (AMESH) then
-      write(*,'(A)') 'Generating analytical mesh...'
-      call AYMESH()
-    else if (YIN(JMIN) == 0.0) then
-      ! YIN needs default initialization for tunnel or free air case
-      if (BCTYPE == 1) then
-        ! Free air case
-        JMAXI = JMXF
-        do J_VAR = JMIN, JMAXI
-          YIN(J_VAR) = YFREE(J_VAR)
-        end do
-      else
-        ! Tunnel case
-        JMAXI = JMXT
-        do J_VAR = JMIN, JMAXI
-          YIN(J_VAR) = YTUN(J_VAR)
-        end do
-      end if
-    end if
-
-    ! Load XIN,YIN into X,Y
-    do I_ITER = IMIN, IMAX
-      X(I_ITER) = XIN(I_ITER)
-    end do
-    do J_ITER = JMIN, JMAX
-      Y(J_ITER) = YIN(J_ITER)
-    end do
-
-    ! Output mesh coordinates
-    write(UNIT_OUTPUT, '(1H0,4X,3HXIN)')
-    write(UNIT_OUTPUT, '(4X,6F11.6)') (XIN(IDX), IDX=IMIN, IMAXI)
-    write(UNIT_OUTPUT, '(1H0,4X,3HYIN)')
-    write(UNIT_OUTPUT, '(4X,6F11.6)') (YIN(JDX), JDX=JMIN, JMAXI)
-    
-    ! Print airfoil coordinates if needed (BCFOIL > 2 and BCFOIL /= 5)
-    if (BCFOIL > 2 .and. BCFOIL /= 5) then
-      write(UNIT_OUTPUT, '(1H0,15X,2HXU)')
-      write(UNIT_OUTPUT, '(4X,6F11.6)') (XU(IDX), IDX=1, NU)
-      write(UNIT_OUTPUT, '(1H0,15X,2HYU)')
-      write(UNIT_OUTPUT, '(4X,6F11.6)') (YU(IDX), IDX=1, NU)
-      write(UNIT_OUTPUT, '(1H0,15X,2HXL)')
-      write(UNIT_OUTPUT, '(4X,6F11.6)') (XL(IDX), IDX=1, NL)
-      write(UNIT_OUTPUT, '(1H0,15X,2HYL)')
-      write(UNIT_OUTPUT, '(4X,6F11.6)') (YL(IDX), IDX=1, NL)
-    end if
-    
     ! Set derived constants
     GAM1 = GAM + 1.0
-    IMAX = IMAXI
-    JMAX = JMAXI
-    IM1 = IMAX - 1
-    JM1 = JMAX - 1
-    
-    ! Check array bounds (any call to INPERR causes message to be printed and execution stopped)
-    if (IMAXI > N_MESH_POINTS .or. JMAXI > N_MESH_POINTS) call INPERR(1)
-    
-    ! Check input mesh for monotonically increasing values
-    do IDX = IMIN, IM1
-      if (XIN(IDX) >= XIN(IDX+1)) call INPERR(2)
-    end do
-    
-    do JDX = JMIN, JM1
-      if (YIN(JDX) >= YIN(JDX+1)) call INPERR(3)
-    end do
-    
-    ! Check parameter ranges
-    if (EMACH < 0.5 .or. EMACH > 2.0) call INPERR(4)
-    if (ALPHA < -9.0 .or. ALPHA > 9.0) call INPERR(5)
-    if (DELTA < 0.0 .or. DELTA > 1.0) call INPERR(6)
-    if (NWDGE > 0 .and. EMACH > 1.0) call INPERR(8)
-    
-    ! Compute ILE and ITE (leading and trailing edge)
-    call ISLIT(XIN)
-    call JSLIT(YIN)
-    
-    ! Check number of mesh points, if not odd add points to appropriate areas to make odd no.
-    call CKMESH()
-    
-    ! Check bounds of YMESH for tunnel calculations
-    if (BCTYPE /= 1) then
-      HTM = H - 0.00001
-      HTP = H + 0.00001
-      YS = abs(YIN(JMIN))
-      YE = abs(YIN(JMAX))
-      if (.not. ((YS >= HTM .and. YS <= HTP) .and. (YE >= HTM .and. YE <= HTP))) then
-        ! Rescale Y mesh to -H,+H bounds
-        TERM = -H / YIN(JMIN)
-        do JDX = JMIN, JLOW
-          YIN(JDX) = TERM * YIN(JDX)
-        end do
-        TERM = H / YIN(JMAX)
-        do JDX = JUP, JMAX
-          YIN(JDX) = TERM * YIN(JDX)
-        end do
-      end if
-    end if
-    
-    ! If PSTART = 2 read old values from restart file using LOADP subroutine
-    if (PSTART == 2) then
-      write(*, '(A)') 'PSTART = 2 not used in modern code'
-      stop
-      ! call LOADP()
-    end if
-    
+
+    ! Setup and output mesh
+    call setup_mesh()
+    ! call OUTPUT_MESH()
+
+    ! Output parameters to output file
+    call OUTPUT_PARAMETERS()
+
   end subroutine READIN
   
   ! Scale physical variables to transonic similarity variables
@@ -231,8 +112,8 @@ contains
     ! CALLED BY - TSFOIL.
     use common_data, only: PHYS, DELTA, EMACH, SIMDEF
     use common_data, only: AK, ALPHA, GAM1, RTK, YFACT, CPFACT, CLFACT, CDFACT, CMFACT, VFACT
-    use common_data, only: YIN, YOLD, JMIN, JMAX, JMINO, JMAXO, PSTART
-    use common_data, only: H, POR, SONVEL, CPSTAR, DELRT2, EMROOT
+    use common_data, only: YIN, JMIN, JMAX
+    use common_data, only: H, POR, SONVEL, CPSTAR, DELRT2, EMROOT, INPERR
     implicit none
     real :: EMACH2, BETA, DELRT1
     real :: YFACIV
@@ -310,12 +191,6 @@ contains
       do J = JMIN, JMAX
         YIN(J) = YIN(J) * YFACIV
       end do
-      
-      if (PSTART /= 1) then
-        do J = JMINO, JMAXO
-          YOLD(J) = YOLD(J) * YFACIV
-        end do
-      end if
 
       ! SCALE TUNNEL PARAMETERS
       H = H / YFACT
@@ -424,9 +299,6 @@ contains
     
     ! Print shock and mach number on Y=0 line
     call PRINT_SHOCK()
-    
-    ! Output mesh data
-    call OUTPUT_MESH()
 
     ! Output field data
     call OUTPUT_FIELD()
@@ -503,6 +375,51 @@ contains
 
   end subroutine PRINT_SHOCK
 
+  ! Output settings and parameters to output file
+  subroutine OUTPUT_PARAMETERS()
+    use common_data
+    implicit none
+    integer :: IDX, JDX
+    
+    ! Echo input parameters to output file with exact original format strings
+    write(UNIT_OUTPUT, '(1H0,4X,7HEMACH =,F9.5,5X,5HPOR =,F9.5,3X,6HIMIN =,I4,3X,8HBCTYPE =,I3)') &
+      EMACH, POR, IMIN, BCTYPE
+    write(UNIT_OUTPUT, '(1H0,4X,7HDELTA =,F9.5,3X,7HCLSET =,F9.5,3X,6HIMAX =,I4,6X,7HPHYS = ,L1)') &
+      DELTA, CLSET, IMAX, PHYS
+    write(UNIT_OUTPUT, '(1H0,4X,7HALPHA =,F9.5,5X,5HEPS =,F9.5,3X,6HJMIN =,I4,7X,6HFCR = ,L1)') &
+      ALPHA, EPS, JMIN, FCR
+    write(UNIT_OUTPUT, '(1H0,7X,4HAK =,F9.5,4X,6HRIGF =,F9.5,3X,6HJMAX =,I4,5X,8HKUTTA = ,L1)') &
+      AK, RIGF, JMAX, KUTTA
+    write(UNIT_OUTPUT, '(1H0,6X,5HGAM =,F9.5,3X,7HWCIRC =,F9.5,2X,7HMAXIT =,I4,3X,8HIPRTER =,I3)') &
+      GAM, WCIRC, MAXIT, IPRTER
+    write(UNIT_OUTPUT, '(1H0,8X,3HF =,F9.5,2X,8HCVERGE =,F9.5,5X,4HNU =,I4,3X,8HSIMDEF =,I3)') &
+      F, CVERGE, NU, SIMDEF
+    write(UNIT_OUTPUT, '(1H0,8X,3HH =,F9.5,2X,8HDVERGE =,F9.1,5X,4HNL =,I4)') &
+      H, DVERGE, NL
+    write(UNIT_OUTPUT, '(1H0,7X,5HWE = ,F4.2,2(1H,,F4.2))') WE
+    
+    if (NWDGE == 1) write(UNIT_OUTPUT, '(1H0,15X,12HMURMAN WEDGE,5X,8HREYNLD =,E10.3,5X,8HWCONST =,F9.5)') REYNLD, WCONST
+    if (NWDGE == 2) write(UNIT_OUTPUT, '(1H0,15X,15HYOSHIHARA WEDGE)')
+    if (IFLAP /= 0) write(UNIT_OUTPUT, '(1H0,15X,17HFLAP IS DEFLECTED,F5.2,20H DEGREES FROM H.L. =,F6.3,8H TO T.E.)') DELFLP, FLPLOC
+
+    ! Output mesh coordinates
+    write(UNIT_OUTPUT, '(1H0,4X,3HXIN)')
+    write(UNIT_OUTPUT, '(4X,6F11.6)') (XIN(IDX), IDX=IMIN, IMAX)
+    write(UNIT_OUTPUT, '(1H0,4X,3HYIN)')
+    write(UNIT_OUTPUT, '(4X,6F11.6)') (YIN(JDX), JDX=JMIN, JMAX)
+
+    ! Print airfoil coordinates
+    write(UNIT_OUTPUT, '(1H0,15X,2HXU)')
+    write(UNIT_OUTPUT, '(4X,6F11.6)') (XU(IDX), IDX=1, NU)
+    write(UNIT_OUTPUT, '(1H0,15X,2HYU)')
+    write(UNIT_OUTPUT, '(4X,6F11.6)') (YU(IDX), IDX=1, NU)
+    write(UNIT_OUTPUT, '(1H0,15X,2HXL)')
+    write(UNIT_OUTPUT, '(4X,6F11.6)') (XL(IDX), IDX=1, NL)
+    write(UNIT_OUTPUT, '(1H0,15X,2HYL)')
+    write(UNIT_OUTPUT, '(4X,6F11.6)') (YL(IDX), IDX=1, NL)
+
+  end subroutine OUTPUT_PARAMETERS
+
   ! Output mesh data to file in Tecplot format
   subroutine OUTPUT_MESH(OPTIONAL_FILE_NAME)
     use common_data, only: X, Y, JMIN, JMAX, UNIT_MESH, IMIN, IMAX
@@ -532,20 +449,20 @@ contains
 
   ! Output Cp, Mach distribution on a x-line (Y=0) in Tecplot format
   subroutine OUTPUT_CP_MACH_XLINE(CL_val, CM, EM1U, EM1L)
-    use common_data, only: IMIN, IMAX, UNIT_CPXS
+    use common_data, only: IMIN, IMAX, UNIT_CPXS, VFACT
     use common_data, only: X, EMACH, CPSTAR, ALPHA
     use common_data, only: CPU, CPL
     implicit none
     real, intent(in) :: CL_val, CM
     real, intent(in) :: EM1U(:), EM1L(:)
-
+    
     integer :: I_P1
 
     open(unit=UNIT_CPXS, file='cpxs.dat', status='replace', action='write')
 
     ! Write coefficients
     write(UNIT_CPXS, '(A, F10.6)') '# Mach = ', EMACH
-    write(UNIT_CPXS, '(A, F10.6)') '# Alpha = ', ALPHA
+    write(UNIT_CPXS, '(A, F10.6)') '# Alpha = ', ALPHA * VFACT
     write(UNIT_CPXS, '(A, F10.6)') '# CL = ', CL_val
     write(UNIT_CPXS, '(A, F10.6)') '# CM = ', CM
     write(UNIT_CPXS, '(A, F10.6)') '# Cp* = ', CPSTAR
@@ -566,19 +483,20 @@ contains
   ! Output field in Tecplot format
   subroutine OUTPUT_FIELD()
     use common_data, only: UNIT_FIELD, X, Y, JMIN, JMAX, IMIN, IMAX, CPFACT
-    use common_data, only: EMACH, ALPHA
-    use common_data, only: P, IUP, IDOWN, C1, CXL, CXC, CXR, VT
+    use common_data, only: EMACH, ALPHA, VFACT, N_MESH_POINTS
+    use common_data, only: P, IUP, IDOWN, C1, CXL, CXC, CXR
     use math_module, only: PX, EMACH1
     implicit none
     integer :: I, J
     real :: U, EM, CP_VAL, FLOW_TYPE_NUM
+    real :: VT(N_MESH_POINTS,2)            ! Velocity time history
 
     open(unit=UNIT_FIELD, file='field.dat', status='replace', action='write')
 
     ! Write Tecplot header
     write(UNIT_FIELD, '(A)') '# Flow types: -1=Outside domain, 0=Elliptic, 1=Parabolic, 2=Hyperbolic, 3=Shock'
     write(UNIT_FIELD, '(A, F10.6)') '# Mach = ', EMACH
-    write(UNIT_FIELD, '(A, F10.6)') '# Alpha = ', ALPHA
+    write(UNIT_FIELD, '(A, F10.6)') '# Alpha = ', ALPHA * VFACT
     write(UNIT_FIELD, '(A,F10.6)') '# CPFACT = ', CPFACT
     
     write(UNIT_FIELD, '(A)') 'VARIABLES = "X", "Y", "Mach", "Cp", "P", "FlowType"'
@@ -626,7 +544,7 @@ contains
           FLOW_TYPE_NUM = -1.0
         end if
         
-        write(UNIT_FIELD, '(5F16.12)') X(I), Y(J), EM, CP_VAL, P(J,I), FLOW_TYPE_NUM
+        write(UNIT_FIELD, '(6F16.12)') X(I), Y(J), EM, CP_VAL, P(J,I), FLOW_TYPE_NUM
       end do
     end do
 
@@ -1142,45 +1060,5 @@ contains
       write(UNIT_OUTPUT,'(A)') ' PRINTOUT OF SHOCK LOSSES ARE NOT AVAILABLE FOR REST OF SHOCK'
     end if
   end subroutine PRTSK
-
-  ! Fatal error in input - write message and stop
-  ! CALLED BY - READIN, SCALE
-  subroutine INPERR(I_ERROR_CODE)
-    use common_data, only: UNIT_OUTPUT
-    implicit none
-    integer, intent(in) :: I_ERROR_CODE
-    
-    select case (I_ERROR_CODE)
-    case (1)
-      write(UNIT_OUTPUT, '(A)') ' '
-      write(UNIT_OUTPUT, '(5X,A)') 'IMAX OR JMAX IS GREATER THAN N_MESH_POINTS, NOT ALLOWED.'
-    case (2)
-      write(UNIT_OUTPUT, '(A)') ' '
-      write(UNIT_OUTPUT, '(5X,A)') 'X MESH POINTS NOT MONOTONIC INCREASING.'
-    case (3)
-      write(UNIT_OUTPUT, '(A)') ' '
-      write(UNIT_OUTPUT, '(5X,A)') 'Y MESH POINTS NOT MONOTONIC INCREASING.'
-    case (4)
-      write(UNIT_OUTPUT, '(A)') ' '
-      write(UNIT_OUTPUT, '(5X,A)') 'MACH NUMBER NOT IN PERMITTED RANGE. (.5,2.0)'
-    case (5)
-      write(UNIT_OUTPUT, '(A)') ' '
-      write(UNIT_OUTPUT, '(5X,A)') 'ALPHA NOT IN PERMITTED RANGE. (-9.0, 9.0)'
-    case (6)
-      write(UNIT_OUTPUT, '(A)') ' '
-      write(UNIT_OUTPUT, '(5X,A)') 'DELTA NOT IN PERMITTED RANGE. ( 0.0, 1.0)'
-    case (7)
-      write(UNIT_OUTPUT, '(A)') ' '
-      write(UNIT_OUTPUT, '(5X,A)') 'AK=0. VALUE OF AK MUST BE INPUT SINCE PHYS=F.'
-    case (8)
-      write(UNIT_OUTPUT, '(A)') ' '
-      write(UNIT_OUTPUT, '(5X,A)') 'MACH NUMBER IS NOT LESS THAN 1.0 FOR VISCOUS WEDGE INCLUSION'
-    case default
-      write(UNIT_OUTPUT, '(A)') ' '
-      write(UNIT_OUTPUT, '(5X,A)') 'UNKNOWN ERROR CODE.'
-    end select
-    
-    stop
-  end subroutine INPERR
 
 end module io_module

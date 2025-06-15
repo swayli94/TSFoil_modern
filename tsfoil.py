@@ -19,8 +19,12 @@ path = os.path.dirname(os.path.abspath(__file__))
 if path not in sys.path:
     sys.path.append(path)
 
+import shutil
 import numpy as np
 from scipy.optimize import fsolve
+import matplotlib.pyplot as plt
+from matplotlib.colors import LinearSegmentedColormap
+import matplotlib.patches as patches
 
 
 class TSFoil(object):
@@ -43,6 +47,9 @@ class TSFoil(object):
         '''
         self.airfoil = {}
         self.mesh = {}
+        self.data_summary = {}
+        self.data_cpxs = {}
+        self.data_field = {}
 
         self.PROGRAM_NAME = "tsfoil_modern"
         self._set_default_config()
@@ -73,10 +80,14 @@ class TSFoil(object):
 
         fmt={'float_kind':'{:9.7f}'.format}
 
+        self.airfoil['x'] = x
+        self.airfoil['y'] = y
         self.airfoil['XU'] = np.array2string(xu, formatter=fmt, separator=", ")[1:-1]
         self.airfoil['YU'] = np.array2string(yu, formatter=fmt, separator=", ")[1:-1]
         self.airfoil['XL'] = np.array2string(xl, formatter=fmt, separator=", ")[1:-1]
         self.airfoil['YL'] = np.array2string(yl, formatter=fmt, separator=", ")[1:-1]
+        self.airfoil['NU'] = xu.shape[0]
+        self.airfoil['NL'] = xl.shape[0]
 
         self.airfoil['name'] = airfoil_file.replace(".dat", "")
 
@@ -136,7 +147,7 @@ class TSFoil(object):
         
         #* Generate symmetric distribution of y-coordinates with clustering near y=0
         half_points = n_point_y // 2 + 1  # Include y=0
-        y_half = self.clustcos(half_points, a0=1.0, a1=0.99, beta=1.0)
+        y_half = self.clustcos(half_points, a0=1.0, a1=0.999, beta=2.0)
         
         # Create symmetric distribution: negative half + positive half
         # y_half goes from 0 to 1, we want symmetric distribution about 0
@@ -169,6 +180,8 @@ class TSFoil(object):
         '''
         Set the configuration parameters.
         '''
+        self.config['NU'] = self.airfoil['NU']
+        self.config['NL'] = self.airfoil['NL']
         self.config['IMAXI'] = self.mesh['n_point_x']
         self.config['JMAXI'] = self.mesh['n_point_y']
         self.config['XU'] = self.airfoil['XU']
@@ -199,9 +212,9 @@ class TSFoil(object):
         with open(filename, 'w') as f:
             f.write("{}\n$INP\n{}\n$END\n".format(title,settings))
 
-    def extract_smry(self, filename:str='smry.out') -> dict:
+    def load_smry(self, filename:str='smry.out') -> dict:
         '''
-        Extract the summary file.
+        Load the summary file.
         
         Parameters
         ----------
@@ -214,7 +227,7 @@ class TSFoil(object):
         if os.path.getsize(filename) == 0:
             raise ValueError(f"Summary file {filename} is empty - {self.PROGRAM_NAME} likely failed to execute properly")
             
-        self.data = {}
+        self.data_summary = {}
         
         with open(filename, 'r') as f:
             lines = f.readlines()
@@ -222,9 +235,115 @@ class TSFoil(object):
                 if line.startswith('0'):
                     continue
                 line = line.split()
-                self.data[line[-3]] = float(line[-1])
+                self.data_summary[line[-3]] = float(line[-1])
                 
-        return self.data
+        return self.data_summary
+
+    def load_cpxs(self, filename:str='cpxs.dat') -> dict:
+        '''
+        Load the cpxs.dat file.
+        
+        Parameters
+        ----------
+        filename: str
+            The name of the cpxs.dat file.
+            
+        Returns
+        -------
+        data: dict
+            Dictionary containing:
+            - 'x': np.ndarray of x-coordinates
+            - 'cp_up': np.ndarray of upper surface Cp values
+            - 'm_up': np.ndarray of upper surface Mach numbers
+            - 'cp_low': np.ndarray of lower surface Cp values  
+            - 'm_low': np.ndarray of lower surface Mach numbers
+        '''
+        if not os.path.exists(filename):
+            raise FileNotFoundError(f"cpxs.dat not found at: {filename}")
+        
+        # Load data, skipping first 6 lines (header + VARIABLES line)
+        data_array = np.loadtxt(filename, skiprows=6)
+        
+        self.data_cpxs = {
+            'x': data_array[:, 0],
+            'cp_up': data_array[:, 1], 
+            'm_up': data_array[:, 2],
+            'cp_low': data_array[:, 3],
+            'm_low': data_array[:, 4]
+        }
+        
+        return self.data_cpxs
+
+    def load_field(self, filename:str='field.dat') -> dict:
+        '''
+        Load the field.dat file.
+        
+        Parameters
+        ----------
+        filename: str
+            The name of the field.dat file.
+            
+        Returns
+        -------
+        data: dict
+            Dictionary containing:
+            - 'ni': int, number of points in i-direction
+            - 'nj': int, number of points in j-direction
+            - 'x': np.ndarray of x-coordinates (2D grid)
+            - 'y': np.ndarray of y-coordinates (2D grid)
+            - 'mach': np.ndarray of Mach number values (2D grid)
+            - 'cp': np.ndarray of pressure coefficient values (2D grid)
+            - 'potential': np.ndarray of potential values (2D grid)
+            - 'flow_type': np.ndarray of flow type values (2D grid)
+ 
+        '''
+        if not os.path.exists(filename):
+            raise FileNotFoundError(f"field.dat not found at: {filename}")
+        
+        # Read zone info and data
+        data_lines = []
+        
+        with open(filename, 'r') as f:
+            lines = f.readlines()
+            for line in lines:
+                line = line.strip()
+                
+                if line.startswith('ZONE'):
+                    # Parse zone info: ZONE I= 201 J= 152 F= POINT
+                    ni = int(line.split('I=')[1].split()[0])
+                    nj = int(line.split('J=')[1].split()[0])
+                elif line.startswith('VARIABLES'):
+                    continue
+                elif line.startswith('#'):
+                    continue
+                else:
+                    data_lines.append(line)
+        
+        # Parse data
+        data = []
+        for line in data_lines:
+            values = [float(x) for x in line.split()]
+            if len(values) >= 6:  # X, Y, Mach, Cp, P, FlowType (6 values per line)
+                data.append(values[:6])
+        
+        if not data:
+            raise ValueError(f"No valid data found in {filename}")
+        
+        data = np.array(data)
+        
+        # Reshape data to grid (nj rows, ni columns)
+        self.data_field = {
+            'ni': ni,
+            'nj': nj,
+            'x': data[:, 0].reshape(nj, ni),
+            'y': data[:, 1].reshape(nj, ni),
+            'mach': data[:, 2].reshape(nj, ni),
+            'cp': data[:, 3].reshape(nj, ni),
+            'potential': data[:, 4].reshape(nj, ni),
+            'flow_type': data[:, 5].reshape(nj, ni)
+        }
+        
+        return self.data_field
 
     @staticmethod
     def clustcos(n_points: int, a0=0.0079, a1=0.96, beta=1.0, index_point: int|None=None) -> np.ndarray:
@@ -283,7 +402,7 @@ class TSFoil(object):
         self.config = {
             "ALPHA": 0.5,
             "EMACH": 0.75,
-            "MAXIT": 1000
+            "MAXIT": 9999
         }
 
     def _set_executable_path(self, exe_path:str|None = None):
@@ -354,7 +473,6 @@ class TSFoil(object):
         try:
             # Use relative path for input file to avoid path length limitations
             cmd = [self.exe_path, inp_file_relative]
-            print(f"Command: {cmd}")
             
             result = subprocess.run(cmd, 
                         capture_output=True, text=True, cwd=os.getcwd(), shell=False)
@@ -398,7 +516,7 @@ class TSFoil(object):
         def exec_wrapper(alpha):
             self.config["ALPHA"] = alpha.item()
             self.exec()
-            data = self.extract_smry()
+            data = self.load_smry()
             return data["cl"].item() - cl
         
         res = fsolve(exec_wrapper, x0=alpha_0, xtol=0.005)
@@ -409,6 +527,133 @@ class TSFoil(object):
         else:
             print("Failed to find fixed CL")
             return None
+
+    def move_result_files(self, output_dir:str|None=None, filename_prefix:str|None=None):
+        '''
+        Move the result files to the output directory, including:
+        - smry.out
+        - cpxs.dat
+        - field.dat
+        - tsfoil2.out
+        '''
+        if output_dir is None:
+            output_dir = os.getcwd()
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+            
+        if filename_prefix is None:
+            filename_prefix = ''
+            
+        for filename in ['smry.out', 'cpxs.dat', 'field.dat', 'tsfoil2.out']:
+            if os.path.exists(filename):
+                shutil.move(filename, os.path.join(output_dir, filename_prefix + filename))
+            else:
+                print(f"Warning: {filename} not found")
+                
+    def plot_all_results(self, filename:str='tsfoil_results.png'):
+        '''
+        Plot all results, including:
+        - Mesh distribution analysis (read from XIN, YIN in tsfoil2.out)
+        - Mach number distribution on Y=0 line (read from cpxs.dat)
+        - Mach number field (read from field.dat)
+
+        Plot three sub-plots in one figure (1x3).
+        '''
+        
+        # Create figure with 3 subplots arranged in 1 rows, 3 column
+        fig, axes = plt.subplots(1, 3, figsize=(20, 5))
+        fig.suptitle('TSFOIL Results Analysis', fontsize=16, fontweight='bold')
+        
+        # Plot 1: Mesh Distribution Analysis
+        self._plot_mesh_distribution(axes[0])
+        
+        # Plot 2: Mach Number Distribution on Y=0 line
+        self._plot_mach_distribution_y0(axes[1])
+        
+        # Plot 3: Mach Number Field
+        self._plot_mach_field(axes[2])
+        
+        plt.tight_layout()
+        plt.savefig(filename, dpi=300)
+    
+    def _plot_mesh_distribution(self, ax):
+        '''
+        Plot mesh distribution analysis
+        '''
+        xx = self.mesh['xx']
+        yy = self.mesh['yy']
+        xx_airfoil = self.mesh['xx_airfoil']
+        
+        #* X/Y-direction mesh density analysis.
+        dx = np.diff(xx)
+        x_mid = (xx[1:] + xx[:-1]) / 2
+        dy = np.diff(yy)
+        y_mid = (yy[1:] + yy[:-1]) / 2
+        ax.plot(x_mid, dx, 'bo-', markersize=2, linewidth=1, label='X-direction')
+        ax.plot(y_mid, dy, 'g*-', markersize=2, linewidth=1, label='Y-direction')
+        ax.set_xlabel('x (y)')
+        ax.set_ylabel('Δ (mesh spacing)')
+        ax.set_title('Mesh Spacing')
+        ax.grid(True, alpha=0.3)
+        ax.legend()
+        ax.set_yscale('log')   
+
+    def _plot_mach_distribution_y0(self, ax):
+        '''
+        Plot Mach number distribution on Y=0 line from cpxs.dat
+        '''
+        if not self.data_cpxs:
+            self.load_cpxs()
+        
+        x = self.data_cpxs['x']
+        m_up = self.data_cpxs['m_up']
+        m_low = self.data_cpxs['m_low']
+        
+        # Plot Mach number distribution
+        ax.plot(x, m_up,  'b.-', linewidth=2, label='Upper Surface')
+        ax.plot(x, m_low, 'r.-', linewidth=2, label='Lower Surface')
+        
+        # Add reference line for sonic condition
+        ax.axhline(y=1.0, color='k', linestyle='--', alpha=0.5, label='Sonic (M=1)')
+        
+        ax.set_xlabel('X/c')
+        ax.set_ylabel('Mach Number')
+        ax.set_title(f'(Wall) Mach Number Distribution on Y=0')
+        ax.grid(True, alpha=0.3)
+        ax.legend()
+        ax.set_xlim([-0.2, 1.2])
+        
+    def _plot_mach_field(self, ax):
+        '''
+        Plot Mach number field from field.dat
+        '''
+        if not self.data_field:
+            self.load_field()
+
+        x = self.data_field['x']
+        y = self.data_field['y']
+        mach = self.data_field['mach']
+        
+        # Create contour plot
+        max_mach = max(1.5, np.max(mach))
+        levels = np.linspace(0, max_mach, 16)
+        contour = ax.contourf(x, y, mach, levels=levels, cmap='jet', extend='max')
+        
+        # Add colorbar
+        cbar = plt.colorbar(contour, ax=ax, shrink=0.8)
+        cbar.set_label('Mach Number')
+        
+        # Add airfoil outline
+        x_airfoil = self.airfoil['x']
+        y_airfoil = self.airfoil['y']
+        ax.plot(x_airfoil, y_airfoil, 'k--', linewidth=0.5)
+        
+        ax.set_xlim([-0.5, 1.5])
+        ax.set_ylim([-0.5, 0.5])
+        ax.set_xlabel('X/c')
+        ax.set_ylabel('Y/c')
+        ax.set_title(f'Mach Number Field')
+        ax.set_aspect('equal')
 
 if __name__ == "__main__":
     
@@ -423,18 +668,26 @@ if __name__ == "__main__":
     # Load airfoil data
     print("\n1. Loading airfoil data...")
     tsfoil.set_airfoil(os.path.join(path, 'rae2822.dat'))
-    tsfoil.set_mesh()
+    
+    tsfoil.set_mesh(
+        n_point_x=200,
+        n_point_y=80,
+        n_point_airfoil=100
+    )
+    
     tsfoil.set_config({
             "ALPHA": 0.5,
             "EMACH": 0.75,
-            "MAXIT": 3000
+            "MAXIT": 9999
         })
     
     # Single case execution
     print("\n2. Running single case (Mach 0.75)...")
     tsfoil.exec()
-    tsfoil.extract_smry()
-    print(tsfoil.data)
+    tsfoil.load_smry()
+    tsfoil.plot_all_results()   
     
-    
+    print('CL = ', tsfoil.data_summary['CL'])
+    print('CD = ', tsfoil.data_summary['CD'])
+
     

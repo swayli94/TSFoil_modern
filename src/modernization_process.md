@@ -32,6 +32,10 @@ tsfoil_modern/
    - Public/private visibility controls
    - Named constants and allocatable arrays
 
+   | Original Subroutine | Description | Status |
+   |---------------------|-------------|--------|
+   | `INPERR(I)` | Error message output | ✅ |
+
 2. **`math_module.f90`** - Mathematical utilities
 
    | Original Subroutine |  Description | Status |
@@ -74,7 +78,7 @@ tsfoil_modern/
 
    | Original Subroutine | Description | Status |
    |---------------------|-------------|--------|
-   | `AYMESH` | Analytical mesh generation | ✅ |
+   | `AYMESH` | Analytical mesh generation | UNUSED |
    | `CKMESH` | Mesh validation/adjustment | ✅ |
    | `CUTOUT` | Mesh coarsening | UNUSED |
    | `REFINE` | Mesh refinement | UNUSED |
@@ -115,7 +119,6 @@ tsfoil_modern/
    | `PRTMC` | Flow type mapping | Replaced by `OUTPUT_FIELD` |
    | `PRTSK` | Shock wave output | ✅ |
    | `PRTWAL` | Wind tunnel wall condition output | ✅ |
-   | `INPERR(I)` | Error message output | ✅ |
    | `DLAOUT` | Output Cp data | UNUSED |
    | `LOADP` | Read restart file | UNUSED |
    | `CPPLOT` | Cp plot preparation | Replaced by `OUTPUT_CP_MACH_XLINE` |

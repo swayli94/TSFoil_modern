@@ -122,7 +122,7 @@ contains
   ! spacing constants and entered into arrays FXUBC and
   ! FXLBC for use in subroutine SYOR.
   subroutine SETBC(IJUMP)
-    use common_data, only: IMIN, IMAX, IUP, IDOWN, JMIN, JMAX, JTOP, JBOT, J1, J2
+    use common_data, only: IMIN, IMAX, IUP, IDOWN, JMIN, JMAX, JTOP, JBOT
     use common_data, only: ILE, ITE, FXLBC, FXUBC, FXL, FXU
     use common_data, only: AK, ALPHA, BCTYPE, POR, KSTEP, IFOIL
     use common_data, only: CYYBLU, CYYBUD, WSLP
@@ -144,9 +144,6 @@ contains
       if (BCTYPE == 5 .and. POR > 1.5) JINT = 1
       JBOT = JMIN + JINT
       JTOP = JMAX - JINT
-      J1 = JBOT + 1
-      J2 = JTOP - 1
-
     end if
 
     ! Airfoil body boundary condition
