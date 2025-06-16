@@ -3,6 +3,7 @@
 
 module mesh_module
   implicit none
+  private
   public :: CKMESH, ISLIT, JSLIT, setup_mesh
 
 contains

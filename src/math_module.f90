@@ -3,8 +3,10 @@
 
 module math_module
   implicit none
-  public :: ARF, SIMP, PX, PY, EMACH1, LIFT, PITCH, TRAP
-  public :: FINDSK, NEWISK
+  private
+
+  public :: ARF, SIMP, PX, PY, EMACH1, DRAG, LIFT, PITCH, TRAP
+  public :: FINDSK, NEWISK, report_convergence_error
 
 contains
 

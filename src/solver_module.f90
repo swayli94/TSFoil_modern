@@ -4,19 +4,31 @@
 module solver_module
   use common_data, only: N_MESH_POINTS
   implicit none
+  private
+
   public :: DIFCOE, SETBC, BCEND, FARFLD
-  public :: DIAG, RHS, VWEDGE
+  public :: DIAG, RHS, THETA, VWEDGE
+  public :: REYNLD, WCONST, CIRCFF, FHINV, POR
   public :: DTOP, DBOT, VTOP, VBOT, DUP, DDOWN, VUP, VDOWN
 
+  real :: REYNLD = 4.0E6  ! Reynolds number
+  real :: WCONST = 4.0    ! Wall constant
+  real :: CIRCFF = 0.0    ! Circulation at farfield boundary
+  real :: FHINV = 0.0     ! Inverse of Froude number
+  real :: POR = 0.0       ! Porosity
+
   real :: DIAG(N_MESH_POINTS), RHS(N_MESH_POINTS)                     ! Tri-diagonal solver arrays
-  real :: ALPHA0, ALPHA1, ALPHA2, XSING, OMEGA0, OMEGA1, OMEGA2, JET  ! Far-field root parameters
-  real :: B_COEF, BETA0, BETA1, BETA2, PSI0, PSI1, PSI2               ! Vortex/doublet parameters
-  real :: WSLP(N_MESH_POINTS,2)                                       ! Viscous wedge slopes
-  real :: RTKPOR = 0.0
+  real :: THETA(N_MESH_POINTS,N_MESH_POINTS)                          ! Angle array for each mesh point
 
   ! Far-field boundary arrays
   real :: DTOP(N_MESH_POINTS), DBOT(N_MESH_POINTS), DUP(N_MESH_POINTS), DDOWN(N_MESH_POINTS)
   real :: VTOP(N_MESH_POINTS), VBOT(N_MESH_POINTS), VUP(N_MESH_POINTS), VDOWN(N_MESH_POINTS)
+
+  ! PRIVATE VARIABLES
+  real :: ALPHA0, ALPHA1, ALPHA2, XSING, OMEGA0, OMEGA1, OMEGA2, JET  ! Far-field root parameters
+  real :: B_COEF, BETA0, BETA1, BETA2, PSI0, PSI1, PSI2               ! Vortex/doublet parameters
+  real :: WSLP(N_MESH_POINTS,2)                                       ! Viscous wedge slopes
+  real :: RTKPOR = 0.0
 
 contains
 
@@ -137,7 +149,7 @@ contains
   subroutine SETBC(IJUMP)
     use common_data, only: IMIN, IMAX, IUP, IDOWN, JMIN, JMAX, JTOP, JBOT
     use common_data, only: ILE, ITE, FXLBC, FXUBC, FXL, FXU
-    use common_data, only: AK, ALPHA, BCTYPE, POR, IFOIL
+    use common_data, only: AK, ALPHA, BCTYPE, IFOIL
     use common_data, only: CYYBLU, CYYBUD
     implicit none
     integer, intent(in) :: IJUMP
@@ -191,10 +203,8 @@ contains
     use common_data, only: P, X, Y, IUP, IDOWN, &
                           JMIN, JMAX, JTOP, JBOT, &
                           AK, RTK, &
-                          XDIFF, &
-                          CYYD, CYYU, IVAL, &
-                          BCTYPE, CIRCFF, FHINV, POR, &
-                          UNIT_OUTPUT
+                          XDIFF, CYYD, CYYU, IVAL, &
+                          BCTYPE, UNIT_OUTPUT
     implicit none
     
     integer :: I, II
@@ -317,8 +327,8 @@ contains
   ! Compute far-field boundary conditions for outer boundaries
   subroutine FARFLD()
     use common_data, only: AK, RTK, X, Y, IMIN, IMAX, JMIN, JMAX
-    use common_data, only: BCTYPE, F, H, POR, PI, TWOPI, HALFPI
-    use common_data, only: FHINV, UNIT_OUTPUT
+    use common_data, only: BCTYPE, F, H, PI, TWOPI, HALFPI
+    use common_data, only: UNIT_OUTPUT
     implicit none
     integer :: I, J
     real :: YT, YB, XU_BC, XD_BC, YT2, YB2, XU2, XD2, COEF1, COEF2
@@ -518,7 +528,7 @@ contains
   ! Compute the angle THETA at each mesh point
   subroutine ANGLE()
     use common_data, only: IMIN, IMAX, JMIN, JMAX, X, Y, RTK
-    use common_data, only: THETA, PI, TWOPI
+    use common_data, only: PI, TWOPI
     implicit none
     integer :: I, J
     real :: XX, YY, R, ATN, Q, R2PI
@@ -547,7 +557,7 @@ contains
     use common_data, only: GAM1, XDIFF
     use common_data, only: DELTA
     use common_data, only: SONVEL
-    use common_data, only: NWDGE, WCONST, REYNLD
+    use common_data, only: NWDGE
     use math_module, only: PX, EMACH1, FINDSK
     implicit none
 

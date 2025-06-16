@@ -11,7 +11,7 @@ The original monolithic `tsfoil.f90` file has been refactored into a modular str
 ```text
 tsfoil_modern/
 ├── main.f90                  # Main program entry point
-├── common_data.f90           # Global data (replaces COMMON blocks)
+├── common_data.f90           # Global data
 ├── io_module.f90             # Input/output routines
 ├── math_module.f90           # Mathematical utilities
 ├── spline_module.f90         # Cubic spline interpolation  
@@ -20,8 +20,23 @@ tsfoil_modern/
 ├── solver_module.f90         # Finite difference setup
 ├── numerical_solvers.f90     # SOR solver and iteration
 ├── compile.bat               # Build script
-├── tsfoil.inp                # Example input file
 └── modernization_process.md  # This documentation
+```
+
+### Compilation Dependencies
+
+```text
+common_data.f90, spline_module.f90
+    ↓
+math_module.f90
+    ↓
+airfoil_module.f90, mesh_module.f90, solver_module.f90
+    ↓
+numerical_solvers.f90
+    ↓
+io_module.f90
+    ↓
+main.f90
 ```
 
 ### Module Responsibilities
@@ -34,9 +49,20 @@ tsfoil_modern/
 
    | Original Subroutine | Description | Status |
    |---------------------|-------------|--------|
-   | `INPERR(I)` | Error message output | ✅ |
+   | `INPERR` | Error message output | ✅ |
+   | `initialize_common` | Initialize common data arrays and parameters | ✅ |
 
-2. **`math_module.f90`** - Mathematical utilities
+2. **`spline_module.f90`** - Cubic spline interpolation
+
+   | Original Subroutine | Description | Status |
+   |---------------------|-------------|--------|
+   | `SPLN1` | Set up cubic spline coefficients | ✅ |
+   | `SPLN1X` | Evaluate spline at point XP | ✅ |
+   | `initialize_spline` | Initialize spline coefficients | ✅ |
+   | `cleanup_spline` | Deallocate spline arrays | ✅ |
+   | `set_boundary_conditions` | Set boundary conditions for spline | ✅ |
+
+3. **`math_module.f90`** - Mathematical utilities
 
    | Original Subroutine |  Description | Status |
    |---------------------|--------------|--------|
@@ -49,19 +75,9 @@ tsfoil_modern/
    | `LIFT(CLFACT)` | Lift coefficient computation | ✅ |
    | `PITCH(CMFACT)` | Pitching moment calculation | ✅ |
    | `TRAP` | Integrate Y DX by trapezoidal rule | ✅ |
-   | `report_convergence_error` | Report convergence errors | ✅ |
    | `FINDSK` | Find shock location | ✅ |
    | `NEWISK` | Shock index adjustment | ✅ |
-
-3. **`spline_module.f90`** - Cubic spline interpolation
-
-   | Original Subroutine | Description | Status |
-   |---------------------|-------------|--------|
-   | `SPLN1(X, Y, N)` | Set up cubic spline coefficients | ✅ |
-   | `SPLN1X(X, Y, N, XP, YP, DYP)` | Evaluate spline at point XP | ✅ |
-   | `initialize_spline(max_points)` | Initialize spline coefficients | ✅ |
-   | `cleanup_spline` | Deallocate spline arrays | ✅ |
-   | `set_boundary_conditions` | Set boundary conditions for spline | ✅ |
+   | `report_convergence_error` | Report convergence errors | ✅ |
 
 4. **`airfoil_module.f90`** - Geometry handling
 
@@ -74,10 +90,7 @@ tsfoil_modern/
 
    | Original Subroutine | Description | Status |
    |---------------------|-------------|--------|
-   | `AYMESH` | Analytical mesh generation | UNUSED |
-   | `CKMESH` | Mesh validation/adjustment | ✅ |
-   | `CUTOUT` | Mesh coarsening | UNUSED |
-   | `REFINE` | Mesh refinement | UNUSED |
+   | `CKMESH`   | Mesh validation/adjustment | ✅ |
    | `ISLIT(X)` | Leading/trailing edge location | ✅ |
    | `JSLIT(Y)` | Upper/lower surface location | ✅ |
 
@@ -86,10 +99,10 @@ tsfoil_modern/
    | Original Subroutine | Description | Status |
    |---------------------|-------------|--------|
    | `DIFCOE` | Finite difference coefficients | ✅ |
-   | `SETBC(IJUMP)` | Solution limits and BC setup | ✅ |
-   | `BCEND` | Boundary condition application | ✅ |
+   | `SETBC`  | Solution limits and BC setup | ✅ |
+   | `BCEND`  | Boundary condition application | ✅ |
    | `FARFLD` | Far-field boundary setup | ✅ |
-   | `ANGLE` | Angle potential calculation | ✅ |
+   | `ANGLE`  | Angle potential calculation | ✅ |
    | `EXTRAP` | Far-field extrapolation | UNUSED |
    | `VWEDGE` | Viscous wedge corrections | ✅ |
    | `WANGLE` | Wedge angle for viscous correction | ✅ |
@@ -100,11 +113,11 @@ tsfoil_modern/
 
    | Original Subroutine | Description | Status |
    |---------------------|-------------|--------|
-   | `SYOR` | SOR sweep | ✅ |
-   | `SOLVE` | Main iteration loop | ✅ |
+   | `SYOR`   | SOR sweep | ✅ |
+   | `SOLVE`  | Main iteration loop | ✅ |
    | `RECIRC` | Circulation updates | ✅ |
-   | `REDUB` | Doublet strength updates | ✅ |
-   | `RESET` | Far-field boundary updates | ✅ |
+   | `REDUB`  | Doublet strength updates | ✅ |
+   | `RESET`  | Far-field boundary updates | ✅ |
 
 8. **`io_module.f90`** - Input/output operations
 
@@ -114,11 +127,19 @@ tsfoil_modern/
    | `SCALE` | Variable scaling | ✅ |
    | `CDCOLE` | Drag coefficient assembly | ✅ |
    | `PRINT` | Main output driver | ✅ |
+   | `PRTSK` | Shock wave output | ✅ |
+   | `PRTWAL` | Wind tunnel wall condition output | ✅ |
+
+9. **`no_used_subroutines.f90`** - Subroutines that are not used
+
+   | Original Subroutine | Description | Status |
+   |---------------------|-------------|--------|
+   | `AYMESH` | Analytical mesh generation | UNUSED |
+   | `CUTOUT` | Mesh coarsening | UNUSED |
+   | `REFINE` | Mesh refinement | UNUSED |
    | `PRINT1` | Body Cp and Mach output | Replaced by `CHECK_SHOCK_AND_MACH` |
    | `PRTFLD` | Field output | UNUSED |
    | `PRTMC` | Flow type mapping | Replaced by `OUTPUT_FIELD` |
-   | `PRTSK` | Shock wave output | ✅ |
-   | `PRTWAL` | Wind tunnel wall condition output | ✅ |
    | `ECHINP` | Input echoing | UNUSED |
    | `DLAOUT` | Output Cp data | UNUSED |
    | `LOADP` | Read restart file | UNUSED |
@@ -129,18 +150,6 @@ tsfoil_modern/
    | `PLTSON` | Sonic line printer | UNUSED |
    | `GUESSP` | Solution initialization | UNUSED |
    | `MACHMP` | Print map of Mach number | Replaced by `OUTPUT_FIELD` |
-
-### Compilation Dependencies
-
-```text
-common_data.f90 → (foundation module)
-    ↓
-math_module.f90 → spline_module.f90
-    ↓
-airfoil_module.f90 → mesh_module.f90 → solver_module.f90 → numerical_solvers.f90
-    ↓
-io_module.f90 → main.f90
-```
 
 ## Key Modernization Improvements
 

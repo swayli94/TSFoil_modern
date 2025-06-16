@@ -3,15 +3,17 @@
 
 module io_module
   use common_data
+  use numerical_solvers, only: IPRTER, MAXIT, WE, CVERGE, DVERGE
+  use solver_module, only: REYNLD, WCONST, POR
   implicit none
 
   real :: VFACT, YFACT
 
-  ! Complete namelist matching the original /INP/ namelist exactly
+  ! User-input parameters
   namelist /INP/ AK, ALPHA, BCTYPE, CLSET, &
                   CVERGE, DELTA, DVERGE, EMACH, EPS, F, &
-                  FCR, GAM, H, IMAXI, IMIN, &
-                  IPRTER, JMAXI, JMIN, KUTTA, MAXIT, NL, &
+                  FCR, H, IMAXI, &
+                  IPRTER, JMAXI, KUTTA, MAXIT, NL, &
                   NU, PHYS, POR, &
                   RIGF, SIMDEF, WCIRC, WE, &
                   XIN, YIN, XL, YL, XU, YU, &
@@ -89,9 +91,6 @@ contains
     ! Set AK=0 for physical coordinates
     if (PHYS) AK = 0.0
 
-    ! Set derived constants
-    GAM1 = GAM + 1.0
-
     ! Setup and output mesh
     call setup_mesh()
     ! call OUTPUT_MESH()
@@ -114,7 +113,8 @@ contains
     use common_data, only: PHYS, DELTA, EMACH, SIMDEF
     use common_data, only: AK, ALPHA, GAM1, RTK, CPFACT, CLFACT, CDFACT, CMFACT
     use common_data, only: YIN, JMIN, JMAX
-    use common_data, only: H, POR, SONVEL, CPSTAR, DELRT2, EMROOT, INPERR
+    use common_data, only: H, SONVEL, CPSTAR, DELRT2, EMROOT, INPERR
+    use solver_module, only: POR
     implicit none
     real :: EMACH2, BETA, DELRT1
     real :: YFACIV
@@ -219,6 +219,7 @@ contains
   subroutine PRINT()
     use common_data
     use math_module, only: PITCH, LIFT
+    use numerical_solvers, only: DUB
     implicit none
 
     ! Write page break
@@ -367,6 +368,7 @@ contains
   ! Output settings and parameters to output file
   subroutine OUTPUT_PARAMETERS()
     use common_data
+    use solver_module, only: POR
     implicit none
     integer :: IDX, JDX
     
@@ -557,9 +559,10 @@ contains
   subroutine PRTWAL()
     use common_data, only: P, X, Y, CPFACT, JMIN, JMAX, &
                           IUP, IDOWN, JBOT, JTOP, JTOP, JBOT, &
-                          BCTYPE, CIRCFF, FHINV, POR, F, H, CPSTAR, &
+                          BCTYPE, F, H, CPSTAR, &
                           XDIFF, UNIT_OUTPUT
     use math_module, only: PX, PY
+    use solver_module, only: POR, CIRCFF, FHINV
     implicit none
     
     ! Local variables

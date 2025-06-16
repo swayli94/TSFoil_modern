@@ -4,6 +4,7 @@
 module airfoil_module
   use common_data, only: N_MESH_POINTS
   implicit none
+  private
   public :: BODY, PRBODY
 
   real :: CAMBER(N_MESH_POINTS), THICK(N_MESH_POINTS), XFOIL(N_MESH_POINTS)

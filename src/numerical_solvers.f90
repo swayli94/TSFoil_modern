@@ -4,12 +4,24 @@
 module numerical_solvers
   use common_data, only: N_MESH_POINTS
   implicit none
+  private
+
   public :: SOLVE
+  public :: IPRTER, MAXIT, WE, CVERGE, DVERGE, DUB
+
+  integer :: IPRTER = 100     ! Print interval for convergence history
+  integer :: MAXIT = 1000     ! Maximum number of iterations
+
+  real :: WE(3) = [1.8, 1.9, 1.95]  ! SOR relaxation factors
+  real :: CVERGE = 0.00001    ! Error criterion for convergence
+  real :: DVERGE = 10.0       ! Error criterion for divergence
 
   real :: POLD(N_MESH_POINTS,2)   ! old potential values  
   real :: EMU(N_MESH_POINTS,2)    ! circulation factors
   real :: WI = 1.05               ! SOR relaxation factor
   real :: CIRCTE = 0.0            ! Circulation at trailing edge (save the value for iterations)
+
+  real :: DUB = 0.0           ! doublet strength
 
   integer, parameter :: KSTEP = 1 ! Step size for circulation-jump boundary update
 
@@ -199,16 +211,16 @@ contains
 
   ! Main iteration loop: solver, convergence, and flow updates
   subroutine SOLVE()
-    use common_data, only: MAXIT, CVERGE, DVERGE, IPRTER, ABORT1
-    use common_data, only: WE, EPS, IMIN, JMIN, JMAX, IUP, IDOWN
+    use common_data, only: ABORT1
+    use common_data, only: EPS, IMIN, JMIN, JMAX, IUP, IDOWN
     use common_data, only: JTOP, JBOT
     use common_data, only: P, Y, AK
-    use common_data, only: THETA, BCTYPE
+    use common_data, only: BCTYPE
     use common_data, only: NWDGE
     use common_data, only: C1
     use common_data, only: CLFACT, CMFACT, UNIT_OUTPUT
     use math_module, only: LIFT, PITCH
-    use solver_module, only: SETBC, VWEDGE
+    use solver_module, only: SETBC, VWEDGE, THETA
     implicit none
     
     integer :: ITER, MAXITM, KK, J, I, IK, JK, JINC, N, I1, I2
@@ -406,7 +418,8 @@ contains
   ! 3.) Jump in P along slit Y=0, X > 1 by linear interpolation between CIRCTE and CIRCFF
   subroutine RECIRC(DCIRC)
     use common_data, only: P, X, IMAX, ITE, JUP, JLOW, CJUP, CJUP1, CJLOW, CJLOW1
-    use common_data, only: PJUMP, CIRCFF, WCIRC, CLSET, CLFACT, KUTTA
+    use common_data, only: PJUMP, WCIRC, CLSET, CLFACT, KUTTA
+    use solver_module, only: CIRCFF
     implicit none
     real, intent(out) :: DCIRC  ! circulation change
     
@@ -445,8 +458,9 @@ contains
   ! For other flows, the nonlinear contribution is added.
   subroutine REDUB()
     use common_data, only: P, Y, IMIN, IMAX, JMIN, JMAX, N_MESH_POINTS
-    use common_data, only: DUB, GAM1, XDIFF, BCTYPE, CIRCFF, VOL
+    use common_data, only: GAM1, XDIFF, BCTYPE, VOL
     use math_module, only: TRAP
+    use solver_module, only: CIRCFF
     implicit none
     
     ! Local variables
@@ -499,9 +513,8 @@ contains
   ! Updates far field boundary conditions for subsonic freestream flows.
   ! CALLED BY - SOLVE.
   subroutine RESET()
-    use common_data, only: P, IMIN, IMAX, JMIN, JMAX, JUP
-    use common_data, only: CIRCFF, DUB, BCTYPE
-    use solver_module, only: DUP, DDOWN, DTOP, DBOT, VUP, VDOWN, VTOP, VBOT
+    use common_data, only: P, IMIN, IMAX, JMIN, JMAX, JUP, BCTYPE
+    use solver_module, only: CIRCFF, DUP, DDOWN, DTOP, DBOT, VUP, VDOWN, VTOP, VBOT
     implicit none
     integer :: J, I, K
 

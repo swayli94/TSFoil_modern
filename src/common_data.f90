@@ -4,20 +4,15 @@
 module common_data
   implicit none
   private
-  
-  ! Mesh size parameter - change this to adjust mesh dimensions
-  integer, parameter :: N_MESH_POINTS = 1000
-  integer, parameter :: NMP_plus2 = N_MESH_POINTS + 2  ! Number of mesh points + 2
-  integer, parameter :: NMP_plus1 = N_MESH_POINTS + 1  ! Number of mesh points + 1
-  
+
   public :: N_MESH_POINTS, NMP_plus2, NMP_plus1
   public :: IMIN, IMAX, IUP, IDOWN, ILE, ITE, JMIN, JMAX, JUP, JLOW, JTOP, JBOT
-  public :: AK, ALPHA, DUB, GAM1, RTK, PHYS
+  public :: AK, ALPHA, RTK, PHYS
   public :: ABORT1
   public :: P, X, Y, XIN, YIN
   public :: FL, FXL, FU, FXU, VOL, IFOIL
   public :: NL, NU, XL, XU, YL, YU, PERCENT, CHORD
-  public :: RIGF, IFLAP, DELFLP, FLPLOC, FSYM
+  public :: RIGF, IFLAP, DELFLP, FLPLOC
   public :: SIMDEF, DELTA, EMACH, DELRT2, EMROOT, CL
   public :: CDFACT, CLFACT, CMFACT, CPFACT, CPSTAR, SONVEL
   public :: F, H, HALFPI, PI, TWOPI
@@ -26,17 +21,58 @@ module common_data
   public :: CXXC, CXXL, CXXR, CYYC, CYYD, CYYU, IVAL, XDIFF, YDIFF
   public :: CJUP, CJUP1, CJLOW, CJLOW1, CYYBUD, CYYBUC, CYYBUU
   public :: CYYBLU, CYYBLC, CYYBLD, FXLBC, FXUBC    
-  public :: CIRCFF
-  public :: PJUMP, FCR, KUTTA, CVERGE, MAXIT, IPRTER
+  public :: PJUMP, FCR, KUTTA
   public :: CLSET
-  public :: EPS, WE, NWDGE, REYNLD, WCONST
-  public :: DVERGE, GAM, POR, FHINV, WCIRC
+  public :: EPS, NWDGE
+  public :: GAM, GAM1, WCIRC
   public :: YFREE, YTUN, JMXF, JMXT
-  public :: THETA  ! COM33: angle array for each mesh point
   public :: initialize_common, INPERR
   public :: UNIT_INPUT, UNIT_OUTPUT
   public :: UNIT_SUMMARY, UNIT_CPXS, UNIT_MESH, UNIT_FIELD
   
+  ! Constants
+  
+  integer, parameter :: N_MESH_POINTS = 1000            ! Mesh size parameter - change this to adjust mesh dimensions
+  integer, parameter :: NMP_plus2 = N_MESH_POINTS + 2   ! Number of mesh points + 2
+  integer, parameter :: NMP_plus1 = N_MESH_POINTS + 1   ! Number of mesh points + 1
+
+  integer, parameter :: IMIN = 1
+  integer, parameter :: JMIN = 1
+
+  real, parameter :: GAM = 1.4            ! Specific heat ratio
+  real, parameter :: GAM1 = GAM + 1.0     ! gamma + 1
+  real, parameter :: PI = 3.14159265      ! pi
+  real, parameter :: HALFPI = 1.570796325 ! 1/2 pi
+  real, parameter :: TWOPI = 6.28318531   ! 2 pi
+
+  ! User-input parameters (global to many modules)
+  ! Note: some user-input parameters are local to other modules
+
+  real :: AK = 0.0        ! Free stream similarity parameter
+  real :: ALPHA = 0.0     ! Angle of attack
+  real :: EMACH = 0.75    ! Mach number
+  integer :: BCTYPE = 1   ! Boundary condition identifiers (1 = free air, 2 = tunnel)
+  real :: CLSET = 0.0     ! Lift coefficient setpoint
+  integer :: NWDGE = 0    ! Viscous wedge parameters (0 = no wedge, 1 = Murman wedge, 2 = Yoshihara wedge)
+  real :: DELTA = 0.115   ! Delta (thickness) of airfoil
+
+  real :: EPS = 0.2       ! Convergence tolerance 
+
+  real :: WCIRC = 1.0       ! Weight for circulation jump at trailing edge (0.0-1.0)
+  logical :: FCR = .true.   ! Whether difference equations are fully conservative
+  logical :: PHYS = .true.  ! Physical (True) vs similarity (False)
+  logical :: KUTTA = .true. ! Whether Kutta condition is enforced
+
+  real :: RIGF = 0.0        ! Rigidity factor for transonic effects
+
+  integer :: NL, NU         ! Number of airfoil lower/upper surface (input geometry) points
+  integer :: IMAXI, JMAXI   ! User-input maximum number of X/Y-direction grid points
+
+  real :: F = 0.0, H = 0.0  ! Wall/tunnel constants
+  integer :: IFLAP = 0      ! Flap flag
+  real :: DELFLP = 0.0      ! Flap deflection angle  
+  real :: FLPLOC = 0.77     ! Flap location
+
   ! Mesh indices (from COMMON /COM1/)
 
   integer :: IUP, IDOWN       ! upstream/downstream indices
@@ -50,28 +86,15 @@ module common_data
   real :: P(NMP_plus2, NMP_plus1)    ! Potential solution array
 
   ! Flow parameters (from /COM2/)
-  real :: AK       ! freestream similarity parameter
-  real :: ALPHA    ! angle of attack
-  real :: DUB      ! doublet strength
-  real :: GAM1     ! gamma - 1
-  real :: RTK      ! sqrt(gamma)
-  logical :: PHYS  ! physical (True) vs similarity (False)
+  real :: RTK      ! sqrt(AK)
 
   ! Control flags and refinement (from /COM3/)
   logical :: ABORT1 ! input abort flag
 
-  ! User-input mesh coordinate arrays
-  real :: XIN(NMP_plus2), YIN(NMP_plus2)
-  
-  ! Mesh coordinate arrays
-  real :: X(NMP_plus2), Y(NMP_plus2)
-
-  integer :: IMIN, IMAX   ! maximum number of grid points in i-direction used in code
-  integer :: JMIN, JMAX   ! maximum number of grid points in j-direction used in code
-  integer :: IMAXI, JMAXI ! User-input maximum number of streamwise (X-direction) and spanwise (Y-direction) grid points
-
-  ! COM5: mesh derivative arrays
-  real :: XDIFF(N_MESH_POINTS), YDIFF(N_MESH_POINTS)
+  integer :: IMAX, JMAX  ! maximum number of grid points in X/Y-direction used in code
+  real :: X(NMP_plus2), Y(NMP_plus2)  ! Mesh coordinate arrays
+  real :: XIN(NMP_plus2), YIN(NMP_plus2)  ! User-input mesh coordinate arrays
+  real :: XDIFF(N_MESH_POINTS), YDIFF(N_MESH_POINTS) ! mesh derivative arrays
   
   ! COM6: surface and flow arrays
   real :: FU(N_MESH_POINTS), FL(N_MESH_POINTS)
@@ -82,38 +105,21 @@ module common_data
   ! COM7: boundary extrapolation/coefficient flags
   real :: CJUP, CJUP1, CJLOW, CJLOW1
 
-  ! COM8: solver control parameters
-  real :: CVERGE, DVERGE
-  real :: WE(3)
-  integer :: IPRTER, MAXIT
-  
   ! COM9: airfoil definition flags
-  integer :: NL, NU
   real :: XL(N_MESH_POINTS), XU(N_MESH_POINTS), YL(N_MESH_POINTS), YU(N_MESH_POINTS)
   real :: PERCENT, CHORD
   
-  ! Airfoil control parameters
-  real :: RIGF        ! rigidity factor for transonic effects
-  integer :: IFLAP    ! flap flag
-  real :: DELFLP      ! flap deflection angle  
-  real :: FLPLOC      ! flap location
-  integer :: FSYM     ! symmetry flag
-  
+
   ! COM10: free-stream/tunnel arrays
-  real :: YFREE(N_MESH_POINTS), YTUN(N_MESH_POINTS), GAM
+  real :: YFREE(N_MESH_POINTS), YTUN(N_MESH_POINTS)
   integer :: JMXF, JMXT
   
-  ! COM12: wall/tunnel constants  
-  real :: F, H, HALFPI, PI, TWOPI
+
   
   ! COM13: coefficient scaling factors
   real :: CDFACT, CLFACT, CMFACT, CPFACT, CPSTAR
   
-  ! COM14: Kutta and circulation flags
-  real :: CLSET     ! Lift coefficient setpoint
-  real :: WCIRC     ! Weight for circulation jump at trailing edge (0.0-1.0)
-  logical :: FCR    ! Whether difference equations are fully conservative
-  logical :: KUTTA  ! Whether Kutta condition is enforced
+
 
   ! COM17: special boundary coefficient arrays
   real :: CYYBLC, CYYBLD, CYYBLU, CYYBUC, CYYBUD, CYYBUU
@@ -135,21 +141,10 @@ module common_data
   real :: CPU(N_MESH_POINTS), CPL(N_MESH_POINTS)
   
   ! COM27: transonic similarity state
-  real :: CL, DELTA, DELRT2, EMACH, EMROOT, EPS
+  real :: CL, DELRT2, EMROOT
   integer :: SIMDEF
   real :: SONVEL
   
-  ! COM28: boundary condition identifiers
-  integer :: BCTYPE
-  real :: CIRCFF, FHINV, POR
-  
-  ! COM33: angle array for each mesh point
-  real :: THETA(N_MESH_POINTS,N_MESH_POINTS)
-  
-  ! COM34: viscous wedge parameters  
-  integer :: NWDGE
-  real :: REYNLD, WCONST
-
   ! File unit numbers for different output files  
   integer, parameter :: UNIT_INPUT = 2          ! Input file
   integer, parameter :: UNIT_OUTPUT = 15        ! tsfoil2.out (Main output file with comprehensive results)
@@ -172,13 +167,9 @@ contains
 
     ! Initialize potential array P
     P = 0.0
-    DUB = 0.0
-    CIRCFF = 0.0
 
     ! Default initial values (will be overridden by READIN with IMAXI/JMAXI from input)
-    IMIN = 1
     IMAX = N_MESH_POINTS
-    JMIN = 1
     JMAX = N_MESH_POINTS
     
     ! Initialize mesh indices to safe defaults (will be recalculated later)
@@ -191,37 +182,9 @@ contains
     JTOP = JMAX - 1
     JBOT = JMIN + 1
 
-    PHYS = .true.
-    BCTYPE = 1  ! Default to free air boundary condition
-    DELTA = 0.115  ! Updated to match BLOCK DATA
-    
-    ! Initialize airfoil control parameters
-    FSYM = 0
-      
     ! Initialize constants (from BLOCK DATA)    
-    PI = 3.14159265
-    HALFPI = 1.570796325
-    TWOPI = 6.28318531
     F = 0.0
     H = 0.0
-    
-    ! Flow parameters (from BLOCK DATA)
-    EMACH = 0.75
-    DELTA = 0.115
-    ALPHA = 0.12
-    AK = 0.0
-    GAM = 1.4
-    RIGF = 0.0
-    EPS = 0.2     ! Default epsilon for convergence checks
-    
-    ! Solver parameters (from BLOCK DATA)
-    CLSET = 0.0
-    CVERGE = 0.00001
-    DVERGE = 10.0
-    WCIRC = 1.0
-    WE(1) = 1.8
-    WE(2) = 1.9
-    WE(3) = 1.95
     
     ! Grid parameters (from BLOCK DATA)
     IMAXI = 77  ! User-input maximum number of streamwise (X-direction) grid points (match default XIN)
@@ -229,31 +192,14 @@ contains
     NU = 100    ! Number of lower surface grid points (match default XU, YU)
     NL = 75     ! Number of upper surface grid points (match default XL, YL)
 
-    MAXIT = 1000  ! Maximum number of iterations
-    IPRTER = 100  ! Print interval for convergence history
-
     ! Logical flags (from BLOCK DATA)
-    PHYS = .true.
-    FCR = .true.
-    KUTTA = .true.
     ABORT1 = .false.
     
     ! Boundary condition parameters (from BLOCK DATA)
-    BCTYPE = 1
     SIMDEF = 3
     
-    ! Flap parameters (from BLOCK DATA)
-    IFLAP = 0
-    DELFLP = 5.0
-    FLPLOC = 0.77
-    
-    ! Viscous parameters (from BLOCK DATA)
-    REYNLD = 4.0E+06
-    WCONST = 4.0
+    ! Viscous parameters
     NWDGE = 0
-
-    ! Initialize boundary condition identifiers
-    POR = 0.0
         
     ! Initialize airfoil coordinate arrays to zero to prevent namelist floating-point exceptions
     XU = 0.0
@@ -336,9 +282,6 @@ contains
                   -0.031104, -0.027333, -0.024661, -0.021854, -0.019517, -0.017429, -0.014527, -0.011771, -0.009228, -0.006537, &
                   -0.003868, -0.002086, -0.000524, 0.000950, 0.002227, 0.003224, 0.003885, 0.004212, 0.004067, 0.003657, &
                   0.003067, 0.002242, 0.001329, 0.000376, 0.000000 /)
-    
-    ! Initialize COM32 variables
-    THETA = 0.0
 
   end subroutine initialize_common
 
