@@ -1,7 +1,7 @@
-! solver_module.f90
-! Module for finite-difference setup and boundary condition routines
+! solver_functions.f90
+! Key functions for the solver
 
-module solver_module
+module solver_functions
   use common_data, only: N_MESH_POINTS
   implicit none
   private
@@ -77,7 +77,7 @@ contains
     use common_data, only: PHYS, EMACH
     use common_data, only: AK, ALPHA, GAM1
     use common_data, only: YIN, JMIN, JMAX
-    use common_data, only: H, CPSTAR, INPERR, UNIT_OUTPUT
+    use common_data, only: CPSTAR, INPERR, UNIT_OUTPUT
     use airfoil_module, only: DELTA
     implicit none
     real :: EMACH2, BETA, DELRT1, DELRT2
@@ -467,7 +467,7 @@ contains
   ! Compute far-field boundary conditions for outer boundaries
   subroutine FARFLD()
     use common_data, only: AK, X, Y, IMIN, IMAX, JMIN, JMAX
-    use common_data, only: BCTYPE, F, H, PI, TWOPI, HALFPI
+    use common_data, only: BCTYPE, PI, TWOPI, HALFPI
     use common_data, only: UNIT_OUTPUT
     implicit none
     integer :: I, J
@@ -862,7 +862,7 @@ contains
   ! Compute constants ALPHA0, ALPHA1, ALPHA2, OMEGA0, OMEGA1, OMEGA2
   ! Used in formula for doublet in slotted wind tunnel with subsonic freestream
   subroutine DROOTS
-    use common_data, only: F, HALFPI, PI, TWOPI
+    use common_data, only: HALFPI, PI, TWOPI
     use math_module, only: report_convergence_error
     implicit none
     real :: ERROR_LOCAL, TEMP, Q, DALPHA
@@ -936,7 +936,7 @@ contains
   ! Compute constants BETA0, BETA1, BETA2, PSI0, PSI1, PSI2
   ! Used in formula for vortex in slotted wind tunnel with subsonic freestream
   subroutine VROOTS
-    use common_data, only: F, PI
+    use common_data, only: PI
     use math_module, only: report_convergence_error
     implicit none
     real :: ERROR_LOCAL, TEMP, Q, DBETA
@@ -1007,4 +1007,4 @@ contains
     
   end subroutine VROOTS
 
-end module solver_module
+end module solver_functions

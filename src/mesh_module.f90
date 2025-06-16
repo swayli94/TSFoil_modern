@@ -17,12 +17,14 @@ contains
 
   ! Setup mesh
   ! This subroutine contains functions that are originally in READIN (io_module.f90)
-  subroutine setup_mesh()
+  subroutine setup_mesh(H)
     use common_data, only: X, Y, XIN, YIN, IMIN, IMAX
     use common_data, only: JMIN, JMAX, IMAXI, JMAXI
     use common_data, only: N_MESH_POINTS
     use common_data, only: BCTYPE, INPERR
     implicit none
+    real, intent(in) :: H
+    
     integer :: J_VAR, IDX, JDX, I_ITER, J_ITER
 
     call setup_default_mesh()
@@ -66,7 +68,7 @@ contains
     call JSLIT(YIN)
 
     ! Check number of mesh points, if not odd add points to appropriate areas to make odd no.
-    call CKMESH()
+    call CKMESH(H)
     
     ! Load XIN,YIN into X,Y
     do I_ITER = IMIN, IMAX
@@ -79,12 +81,14 @@ contains
   end subroutine SETUP_MESH
 
   ! Ensure odd/even mesh counts before/after tail and slit
-  subroutine CKMESH()
+  subroutine CKMESH(H)
     use common_data, only: XIN, YIN, IMIN, IMAX, ITE
     use common_data, only: JMIN, JMAX, JLOW, JUP
     use common_data, only: UNIT_OUTPUT, N_MESH_POINTS
-    use common_data, only: BCTYPE, H
+    use common_data, only: BCTYPE
     implicit none
+    real, intent(in) :: H
+
     integer :: I, LP, L, J, JDX
     real :: TERM, HTM, HTP, YS, YE
     

@@ -3,6 +3,7 @@ REM Compilation script for TSFOIL modern Fortran code with floating-point except
 REM This version enables aggressive floating-point exception trapping
 
 echo Compiling TSFOIL modern Fortran code with floating-point exception handling...
+echo.
 
 REM Clean up any previous compilation files
 del *.mod *.o *.exe 2>nul
@@ -19,12 +20,12 @@ if "%1"=="normal" (
 ) else if "%1"=="none" (
     REM No FPE trapping mode - completely match original behavior
     set FFLAGS=-O2 -Wall -g -fbacktrace
-    echo Using NONE mode: no floating-point exception trapping (original behavior)
+    echo Using NONE mode: no floating-point exception trapping
 ) else (
     REM Default mode - original behavior with basic FPE trapping
     set FFLAGS=-O2 -Wall -ffpe-trap=invalid,zero -g -fbacktrace
-    echo Using DEFAULT mode: basic floating-point exception trapping (original-like)
-    echo Available modes: normal, original, strict, debug, none
+    echo Available modes: normal, debug, none, default
+    echo Using DEFAULT mode: basic floating-point exception trapping
 )
 
 echo Compiler flags: %FFLAGS%
@@ -51,8 +52,12 @@ echo Compiling mesh_module...
 gfortran %FFLAGS% -c mesh_module.f90
 if errorlevel 1 goto error
 
-echo Compiling solver_module...
-gfortran %FFLAGS% -c solver_module.f90
+echo Compiling solver_base...
+gfortran %FFLAGS% -c solver_base.f90
+if errorlevel 1 goto error
+
+echo Compiling solver_functions...
+gfortran %FFLAGS% -c solver_functions.f90
 if errorlevel 1 goto error
 
 echo Compiling main_iteration...
@@ -65,7 +70,7 @@ if errorlevel 1 goto error
 
 REM Compile main program and link
 echo Compiling main program and linking...
-gfortran %FFLAGS% -o tsfoil_modern.exe main.f90 common_data.o spline_module.o math_module.o airfoil_module.o mesh_module.o solver_module.o main_iteration.o io_module.o
+gfortran %FFLAGS% -o tsfoil_modern.exe main.f90 common_data.o spline_module.o math_module.o airfoil_module.o mesh_module.o solver_base.o solver_functions.o main_iteration.o io_module.o
 if errorlevel 1 goto error
 
 move tsfoil_modern.exe ..\ 2>nul

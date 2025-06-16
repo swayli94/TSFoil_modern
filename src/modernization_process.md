@@ -17,7 +17,7 @@ tsfoil_modern/
 ├── spline_module.f90         # Cubic spline interpolation  
 ├── airfoil_module.f90        # Airfoil geometry
 ├── mesh_module.f90           # Mesh generation/refinement
-├── solver_module.f90         # Finite difference setup
+├── solver_functions.f90         # Finite difference setup
 ├── main_iteration.f90     # SOR solver and iteration
 ├── compile.bat               # Build script
 └── modernization_process.md  # This documentation
@@ -27,15 +27,17 @@ tsfoil_modern/
 
 ```text
 common_data.f90, spline_module.f90
-    ↓
+   ↓
 math_module.f90
-    ↓
-airfoil_module.f90, mesh_module.f90, solver_module.f90
-    ↓
+   ↓
+airfoil_module.f90, mesh_module.f90, solver_base.f90
+   ↓
+solver_functions.f90
+   ↓
 main_iteration.f90
-    ↓
+   ↓
 io_module.f90
-    ↓
+   ↓
 main.f90
 ```
 
@@ -96,7 +98,7 @@ main.f90
    | `ISLIT(X)` | Leading/trailing edge location | ✅ |
    | `JSLIT(Y)` | Upper/lower surface location | ✅ |
 
-6. **`solver_module.f90`** - Numerical setup
+6. **`solver_functions.f90`** - Numerical setup
 
    | Original Subroutine | Description | Status |
    |---------------------|-------------|--------|

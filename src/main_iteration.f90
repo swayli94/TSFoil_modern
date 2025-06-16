@@ -36,13 +36,13 @@ contains
     use common_data, only: P, X, IUP, IDOWN, ILE, ITE
     use common_data, only: JMIN, JMAX, JUP, JLOW, JTOP, JBOT
     use common_data, only: AK
-    use solver_module, only: CXL, CXC, CXR, CXXL, CXXC, CXXR, C1
+    use solver_functions, only: CXL, CXC, CXR, CXXL, CXXC, CXXR, C1
     use common_data, only: PJUMP, FCR, EPS
     use common_data, only: N_MESH_POINTS
-    use solver_module, only: DIAG, RHS, FXUBC, FXLBC
-    use solver_module, only: BCEND
-    use solver_module, only: CYYC, CYYD, CYYU
-    use solver_module, only: CYYBUC, CYYBUU, CYYBLC, CYYBLD
+    use solver_functions, only: DIAG, RHS, FXUBC, FXLBC
+    use solver_functions, only: BCEND
+    use solver_functions, only: CYYC, CYYD, CYYU
+    use solver_functions, only: CYYBUC, CYYBUU, CYYBLC, CYYBLD
     implicit none
     integer, intent(inout) :: I1, I2  ! Indices for potential values
     logical, intent(inout) :: OUTERR  ! outer iteration error (logical)
@@ -217,10 +217,9 @@ contains
     use common_data, only: JTOP, JBOT
     use common_data, only: P, Y, AK
     use common_data, only: BCTYPE
-    use common_data, only: C1
     use common_data, only: CLFACT, CMFACT, UNIT_OUTPUT
     use math_module, only: LIFT, PITCH
-    use solver_module, only: SETBC, VWEDGE, THETA, NWDGE
+    use solver_functions, only: SETBC, VWEDGE, THETA, NWDGE, C1
     implicit none
     
     integer :: ITER, MAXITM, KK, J, I, IK, JK, JINC, N, I1, I2
@@ -419,7 +418,7 @@ contains
   subroutine RECIRC(DCIRC)
     use common_data, only: P, X, IMAX, ITE, JUP, JLOW, CJUP, CJUP1, CJLOW, CJLOW1
     use common_data, only: PJUMP, CLSET, CLFACT, KUTTA
-    use solver_module, only: CIRCFF
+    use solver_functions, only: CIRCFF
     implicit none
     real, intent(out) :: DCIRC  ! circulation change
     
@@ -460,7 +459,7 @@ contains
     use common_data, only: P, Y, IMIN, IMAX, JMIN, JMAX, N_MESH_POINTS
     use common_data, only: GAM1, XDIFF, BCTYPE
     use math_module, only: TRAP
-    use solver_module, only: CIRCFF
+    use solver_functions, only: CIRCFF
     use airfoil_module, only: VOL
     implicit none
     
@@ -515,7 +514,7 @@ contains
   ! CALLED BY - SOLVE.
   subroutine RESET()
     use common_data, only: P, IMIN, IMAX, JMIN, JMAX, JUP, BCTYPE
-    use solver_module, only: CIRCFF, DUP, DDOWN, DTOP, DBOT, VUP, VDOWN, VTOP, VBOT
+    use solver_functions, only: CIRCFF, DUP, DDOWN, DTOP, DBOT, VUP, VDOWN, VTOP, VBOT
     implicit none
     integer :: J, I, K
 

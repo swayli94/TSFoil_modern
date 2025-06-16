@@ -5,7 +5,7 @@ module io_module
   use common_data
   use airfoil_module, only: IFLAP, DELFLP, FLPLOC, NU, NL, XL, XU, YL, YU, DELTA
   use main_iteration, only: IPRTER, MAXIT, WE, CVERGE, DVERGE, WCIRC
-  use solver_module, only: REYNLD, WCONST, POR, SIMDEF, NWDGE, F, H
+  use solver_functions, only: REYNLD, WCONST, POR, SIMDEF, NWDGE, F, H
   implicit none
 
   ! User-input parameters
@@ -54,6 +54,7 @@ contains
   subroutine READIN()
     use common_data
     use mesh_module, only: setup_mesh
+    use solver_functions, only: H
     implicit none    
     character(len=100) :: IN_FILENAME, TITLE
     integer :: ios
@@ -100,7 +101,7 @@ contains
     if (PHYS) AK = 0.0
 
     ! Setup and output mesh
-    call setup_mesh()
+    call setup_mesh(H)
     ! call OUTPUT_MESH()
 
     ! Output parameters to output file
@@ -117,7 +118,7 @@ contains
     use math_module, only: PITCH, LIFT, CDCOLE
     use airfoil_module, only: DELTA
     use main_iteration, only: DUB
-    use solver_module, only: SIMDEF, SONVEL, VFACT, YFACT
+    use solver_functions, only: SIMDEF, SONVEL, VFACT, YFACT
     implicit none
 
     ! Write page break
@@ -209,7 +210,7 @@ contains
     use common_data
     use math_module, only: PX, EMACH1, LIFT, PITCH
     use airfoil_module, only: DELTA
-    use solver_module, only: SIMDEF
+    use solver_functions, only: SIMDEF
     implicit none
     
     ! Local variables exactly matching original - renamed to avoid conflicts
@@ -269,7 +270,7 @@ contains
   ! Output settings and parameters to output file
   subroutine OUTPUT_PARAMETERS()
     use common_data
-    use solver_module, only: POR
+    use solver_functions, only: POR, H
     implicit none
     integer :: IDX, JDX
     
@@ -351,7 +352,7 @@ contains
   subroutine OUTPUT_CP_MACH_XLINE(CL_val, CM, EM1U, EM1L)
     use common_data, only: IMIN, IMAX, UNIT_CPXS
     use common_data, only: X, EMACH, CPSTAR, ALPHA
-    use solver_module, only: VFACT
+    use solver_functions, only: VFACT
     implicit none
     real, intent(in) :: CL_val, CM
     real, intent(in) :: EM1U(:), EM1L(:)
@@ -387,7 +388,7 @@ contains
     use common_data, only: P, IUP, IDOWN
     use math_module, only: PX, EMACH1
     use airfoil_module, only: DELTA
-    use solver_module, only: SIMDEF, VFACT, C1, CXL, CXC, CXR
+    use solver_functions, only: SIMDEF, VFACT, C1, CXL, CXC, CXR
     implicit none
     integer :: I, J
     real :: U, EM, CP_VAL, FLOW_TYPE_NUM
@@ -465,7 +466,7 @@ contains
                           BCTYPE, CPSTAR, &
                           XDIFF, UNIT_OUTPUT
     use math_module, only: PX, PY
-    use solver_module, only: POR, CIRCFF, FHINV, VFACT, YFACT, F, H
+    use solver_functions, only: POR, CIRCFF, FHINV, VFACT, YFACT, F, H
     implicit none
     
     ! Local variables
