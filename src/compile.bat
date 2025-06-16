@@ -55,8 +55,8 @@ echo Compiling solver_module...
 gfortran %FFLAGS% -c solver_module.f90
 if errorlevel 1 goto error
 
-echo Compiling numerical_solvers...
-gfortran %FFLAGS% -c numerical_solvers.f90
+echo Compiling main_iteration...
+gfortran %FFLAGS% -c main_iteration.f90
 if errorlevel 1 goto error
 
 echo Compiling io_module...
@@ -65,7 +65,7 @@ if errorlevel 1 goto error
 
 REM Compile main program and link
 echo Compiling main program and linking...
-gfortran %FFLAGS% -o tsfoil_modern.exe main.f90 common_data.o spline_module.o math_module.o airfoil_module.o mesh_module.o solver_module.o numerical_solvers.o io_module.o
+gfortran %FFLAGS% -o tsfoil_modern.exe main.f90 common_data.o spline_module.o math_module.o airfoil_module.o mesh_module.o solver_module.o main_iteration.o io_module.o
 if errorlevel 1 goto error
 
 move tsfoil_modern.exe ..\ 2>nul

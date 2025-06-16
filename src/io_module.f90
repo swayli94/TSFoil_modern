@@ -4,7 +4,7 @@
 module io_module
   use common_data
   use airfoil_module, only: IFLAP, DELFLP, FLPLOC, NU, NL, XL, XU, YL, YU, DELTA
-  use numerical_solvers, only: IPRTER, MAXIT, WE, CVERGE, DVERGE, WCIRC
+  use main_iteration, only: IPRTER, MAXIT, WE, CVERGE, DVERGE, WCIRC
   use solver_module, only: REYNLD, WCONST, POR, SIMDEF, NWDGE, F, H
   implicit none
 
@@ -116,7 +116,7 @@ contains
     use common_data
     use math_module, only: PITCH, LIFT, CDCOLE
     use airfoil_module, only: DELTA
-    use numerical_solvers, only: DUB
+    use main_iteration, only: DUB
     use solver_module, only: SIMDEF, SONVEL, VFACT, YFACT
     implicit none
 

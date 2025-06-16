@@ -18,7 +18,7 @@ tsfoil_modern/
 ├── airfoil_module.f90        # Airfoil geometry
 ├── mesh_module.f90           # Mesh generation/refinement
 ├── solver_module.f90         # Finite difference setup
-├── numerical_solvers.f90     # SOR solver and iteration
+├── main_iteration.f90     # SOR solver and iteration
 ├── compile.bat               # Build script
 └── modernization_process.md  # This documentation
 ```
@@ -32,7 +32,7 @@ math_module.f90
     ↓
 airfoil_module.f90, mesh_module.f90, solver_module.f90
     ↓
-numerical_solvers.f90
+main_iteration.f90
     ↓
 io_module.f90
     ↓
@@ -111,7 +111,7 @@ main.f90
    | `DROOTS` | Compute constants for wind tunnel | ✅ |
    | `VROOTS` | Slotted-wall angle roots | ✅ |
 
-7. **`numerical_solvers.f90`** - Core algorithms
+7. **`main_iteration.f90`** - Core algorithms
 
    | Original Subroutine | Description | Status |
    |---------------------|-------------|--------|

@@ -39,9 +39,9 @@ gfortran %FFLAGS% -c ../src/airfoil_module.f90
 
 gfortran %FFLAGS% -c ../src/io_module.f90
 
-gfortran %FFLAGS% -c ../src/numerical_solvers.f90
+gfortran %FFLAGS% -c ../src/main_iteration.f90
 
-gfortran %FFLAGS% -o %NAME%.exe %NAME%.f90 common_data.o spline_module.o solver_module.o math_module.o mesh_module.o airfoil_module.o io_module.o numerical_solvers.o
+gfortran %FFLAGS% -o %NAME%.exe %NAME%.f90 common_data.o spline_module.o solver_module.o math_module.o mesh_module.o airfoil_module.o io_module.o main_iteration.o
 
 
 echo Compilation modes available:

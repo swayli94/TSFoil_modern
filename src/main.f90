@@ -9,7 +9,7 @@ program tsfoil_main
   use airfoil_module
   use mesh_module
   use solver_module
-  use numerical_solvers
+  use main_iteration
   implicit none
 
   ! Program header

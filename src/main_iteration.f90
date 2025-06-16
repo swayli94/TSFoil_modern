@@ -1,7 +1,7 @@
-! numerical_solvers.f90
+! main_iteration.f90
 ! Module for SOR solver and iteration control routines
 
-module numerical_solvers
+module main_iteration
   use common_data, only: N_MESH_POINTS
   implicit none
   private
@@ -540,4 +540,4 @@ contains
 
   end subroutine RESET
 
-end module numerical_solvers
+end module main_iteration

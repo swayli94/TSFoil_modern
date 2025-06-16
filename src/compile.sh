@@ -65,12 +65,12 @@ gfortran $FFLAGS -c airfoil_module.f90 || handle_error
 echo "Compiling io_module..."
 gfortran $FFLAGS -c io_module.f90 || handle_error
 
-echo "Compiling numerical_solvers..."
-gfortran $FFLAGS -c numerical_solvers.f90 || handle_error
+echo "Compiling main_iteration..."
+gfortran $FFLAGS -c main_iteration.f90 || handle_error
 
 # Compile main program and link
 echo "Compiling main program and linking..."
-gfortran $FFLAGS -o tsfoil_modern main.f90 common_data.o spline_module.o solver_module.o math_module.o mesh_module.o airfoil_module.o io_module.o numerical_solvers.o || handle_error
+gfortran $FFLAGS -o tsfoil_modern main.f90 common_data.o spline_module.o solver_module.o math_module.o mesh_module.o airfoil_module.o io_module.o main_iteration.o || handle_error
 
 # Move executable to parent directory
 mv tsfoil_modern ../ || handle_error
