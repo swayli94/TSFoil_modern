@@ -8,7 +8,9 @@ module numerical_solvers
 
   public :: SOLVE
   public :: IPRTER, MAXIT, WE, CVERGE, DVERGE, DUB
+  public :: WCIRC
 
+  real :: WCIRC = 1.0         ! Weight for circulation jump at trailing edge (0.0-1.0)
   integer :: IPRTER = 100     ! Print interval for convergence history
   integer :: MAXIT = 1000     ! Maximum number of iterations
 
@@ -34,13 +36,13 @@ contains
     use common_data, only: P, X, IUP, IDOWN, ILE, ITE
     use common_data, only: JMIN, JMAX, JUP, JLOW, JTOP, JBOT
     use common_data, only: AK
-    use common_data, only: CXL, CXC, CXR, CXXL, CXXC, CXXR, C1
-    use common_data, only: CYYC, CYYD, CYYU, IVAL
-    use common_data, only: CYYBUC, CYYBUU, CYYBLC, CYYBLD, FXUBC, FXLBC
+    use solver_module, only: CXL, CXC, CXR, CXXL, CXXC, CXXR, C1
     use common_data, only: PJUMP, FCR, EPS
     use common_data, only: N_MESH_POINTS
-    use solver_module, only: DIAG, RHS
+    use solver_module, only: DIAG, RHS, FXUBC, FXLBC
     use solver_module, only: BCEND
+    use solver_module, only: CYYC, CYYD, CYYU
+    use solver_module, only: CYYBUC, CYYBUU, CYYBLC, CYYBLD
     implicit none
     integer, intent(inout) :: I1, I2  ! Indices for potential values
     logical, intent(inout) :: OUTERR  ! outer iteration error (logical)
@@ -136,8 +138,7 @@ contains
         end if
         
         ! Insert wall B.C.
-        IVAL = I
-        call BCEND()
+        call BCEND(I)
         
         ! Compute max residual
         if (OUTERR) then
@@ -216,11 +217,10 @@ contains
     use common_data, only: JTOP, JBOT
     use common_data, only: P, Y, AK
     use common_data, only: BCTYPE
-    use common_data, only: NWDGE
     use common_data, only: C1
     use common_data, only: CLFACT, CMFACT, UNIT_OUTPUT
     use math_module, only: LIFT, PITCH
-    use solver_module, only: SETBC, VWEDGE, THETA
+    use solver_module, only: SETBC, VWEDGE, THETA, NWDGE
     implicit none
     
     integer :: ITER, MAXITM, KK, J, I, IK, JK, JINC, N, I1, I2
@@ -418,7 +418,7 @@ contains
   ! 3.) Jump in P along slit Y=0, X > 1 by linear interpolation between CIRCTE and CIRCFF
   subroutine RECIRC(DCIRC)
     use common_data, only: P, X, IMAX, ITE, JUP, JLOW, CJUP, CJUP1, CJLOW, CJLOW1
-    use common_data, only: PJUMP, WCIRC, CLSET, CLFACT, KUTTA
+    use common_data, only: PJUMP, CLSET, CLFACT, KUTTA
     use solver_module, only: CIRCFF
     implicit none
     real, intent(out) :: DCIRC  ! circulation change
@@ -458,9 +458,10 @@ contains
   ! For other flows, the nonlinear contribution is added.
   subroutine REDUB()
     use common_data, only: P, Y, IMIN, IMAX, JMIN, JMAX, N_MESH_POINTS
-    use common_data, only: GAM1, XDIFF, BCTYPE, VOL
+    use common_data, only: GAM1, XDIFF, BCTYPE
     use math_module, only: TRAP
     use solver_module, only: CIRCFF
+    use airfoil_module, only: VOL
     implicit none
     
     ! Local variables

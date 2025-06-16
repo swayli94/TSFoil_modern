@@ -2,9 +2,16 @@
 ! Module for mesh generation and refinement routines
 
 module mesh_module
+  use common_data, only: N_MESH_POINTS
   implicit none
   private
   public :: CKMESH, ISLIT, JSLIT, setup_mesh
+
+
+  ! Free-stream/tunnel default mesh arrays
+  real :: YFREE(N_MESH_POINTS), YTUN(N_MESH_POINTS)
+  integer :: JMXF, JMXT
+  
 
 contains
 
@@ -12,12 +19,13 @@ contains
   ! This subroutine contains functions that are originally in READIN (io_module.f90)
   subroutine setup_mesh()
     use common_data, only: X, Y, XIN, YIN, IMIN, IMAX
-    use common_data, only: JMIN, JMAX, IMAXI, JMAXI, JMXF, JMXT
+    use common_data, only: JMIN, JMAX, IMAXI, JMAXI
     use common_data, only: N_MESH_POINTS
-    use common_data, only: BCTYPE, YFREE, YTUN, INPERR
-    use common_data, only: EMACH, ALPHA, DELTA, NWDGE
+    use common_data, only: BCTYPE, INPERR
     implicit none
     integer :: J_VAR, IDX, JDX, I_ITER, J_ITER
+
+    call setup_default_mesh()
 
     ! Handle YIN initialization
     if (YIN(JMIN) == 0.0) then
@@ -52,12 +60,6 @@ contains
     do JDX = JMIN, JMAX - 1
       if (YIN(JDX) >= YIN(JDX+1)) call INPERR(3)
     end do
-    
-    ! Check parameter ranges
-    if (EMACH < 0.5 .or. EMACH > 2.0) call INPERR(4)
-    if (ALPHA < -9.0 .or. ALPHA > 9.0) call INPERR(5)
-    if (DELTA < 0.0 .or. DELTA > 1.0) call INPERR(6)
-    if (NWDGE > 0 .and. EMACH > 1.0) call INPERR(8)
     
     ! Compute ILE and ITE (leading and trailing edge)
     call ISLIT(XIN)
@@ -205,5 +207,48 @@ contains
     JLOW = j - 1
     JUP  = j
   end subroutine JSLIT
+
+  ! default mesh distribution
+  subroutine setup_default_mesh()
+    use common_data, only: XIN, IMIN
+    implicit none
+
+    ! Initialize XIN array with default mesh distribution
+    if (XIN(IMIN) == 0.0) then
+      XIN = 0.0
+      XIN(1:77) = (/ -1.075, -0.950, -0.825, -0.7, -0.575, -0.45, -0.35, &
+                   -0.25, -0.175, -0.125, -0.075, -0.0525, -0.035, -0.0225, -0.015, &
+                   -0.0075, -0.0025, 0.0025, 0.0075, 0.0125, 0.0175, 0.0225, &
+                   0.0275, 0.0325, 0.0375, 0.045, 0.055, 0.065, 0.075, 0.085, &
+                   0.0975, 0.115, 0.140625, 0.171875, 0.203125, 0.234375, 0.265625, &
+                   0.296875, 0.328125, 0.359375, 0.390625, 0.421875, 0.453125, &
+                   0.484375, 0.515625, 0.546875, 0.578125, 0.609375, 0.640625, &
+                   0.671875, 0.703125, 0.734375, 0.765625, 0.796875, 0.828125, &
+                   0.859375, 0.885, 0.9, 0.915, 0.93, 0.945, 0.96, 0.975, 0.99, &
+                   1.0, 1.01, 1.025, 1.05, 1.09, 1.15, 1.225, 1.3, 1.4, 1.5, &
+                   1.625, 1.75, 1.875 /)
+    end if
+    
+    JMXF = 56  ! Maximum number of grid points for free-air distribution (YFREE)
+    JMXT = 48  ! Maximum number of grid points for tunnel distribution (YTUN)
+
+    ! Initialize YFREE array with default free-air distribution (from BLOCK DATA)
+    YFREE = 0.0
+    YFREE(1:56) = (/ -5.2, -4.4, -3.6, -3.0, -2.4, -1.95, -1.6, -1.35, -1.15, -0.95, &
+                     -0.80, -0.65, -0.55, -0.45, -0.39, -0.34, -0.30, -0.27, -0.24, -0.21, &
+                     -0.18, -0.15, -0.125, -0.1, -0.075, -0.05, -0.03, -0.01, 0.01, 0.03, &
+                     0.05, 0.075, 0.1, 0.125, 0.15, 0.18, 0.21, 0.24, 0.27, 0.30, &
+                     0.34, 0.39, 0.45, 0.55, 0.65, 0.8, 0.95, 1.15, 1.35, 1.60, &
+                     1.95, 2.4, 3.0, 3.6, 4.4, 5.2 /)
+    
+    ! Initialize YTUN array with default tunnel distribution (from BLOCK DATA)
+    YTUN = 0.0
+    YTUN(1:48) = (/ -2.0, -1.8, -1.6, -1.4, -1.2, -1.0, -0.8, -0.65, -0.55, -0.45, &
+                    -0.39, -0.34, -0.30, -0.27, -0.24, -0.21, -0.18, -0.15, -0.125, -0.1, &
+                    -0.075, -0.05, -0.03, -0.01, 0.01, 0.03, 0.05, 0.075, 0.1, 0.125, &
+                    0.15, 0.18, 0.21, 0.24, 0.27, 0.3, 0.34, 0.39, 0.45, 0.55, &
+                    0.65, 0.8, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0 /)
+
+  end subroutine setup_default_mesh
 
 end module mesh_module

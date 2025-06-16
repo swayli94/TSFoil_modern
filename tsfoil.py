@@ -77,6 +77,14 @@ class TSFoil(object):
         yu = y[:le_pos+1][::-1]
         xl = x[le_pos:]
         yl = y[le_pos:]
+        
+        # Interpolate the airfoil and get the maximum thickness (DELTA)
+        x_interp = np.linspace(np.min(x), np.max(x), num=501)
+        yu_interp = np.interp(x_interp, xu, yu)
+        yl_interp = np.interp(x_interp, xl, yl)
+        t_max = np.max(yu_interp - yl_interp)
+        
+        self.airfoil['t_max'] = round(t_max, 6)
 
         fmt={'float_kind':'{:9.7f}'.format}
 
@@ -180,6 +188,7 @@ class TSFoil(object):
         '''
         Set the configuration parameters.
         '''
+        self.config['DELTA'] = self.airfoil['t_max']
         self.config['NU'] = self.airfoil['NU']
         self.config['NL'] = self.airfoil['NL']
         self.config['IMAXI'] = self.mesh['n_point_x']

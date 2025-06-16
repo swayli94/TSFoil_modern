@@ -6,23 +6,51 @@ module solver_module
   implicit none
   private
 
-  public :: DIFCOE, SETBC, BCEND, FARFLD
+  public :: DIFCOE, SETBC, BCEND, FARFLD, SCALE
   public :: DIAG, RHS, THETA, VWEDGE
-  public :: REYNLD, WCONST, CIRCFF, FHINV, POR
+  public :: SIMDEF, NWDGE, F, H
+  public :: REYNLD, WCONST, CIRCFF, FHINV, POR, SONVEL, VFACT, YFACT
   public :: DTOP, DBOT, VTOP, VBOT, DUP, DDOWN, VUP, VDOWN
+  public :: FXLBC, FXUBC
+  public :: CYYC, CYYD, CYYU
+  public :: CYYBLC, CYYBLD, CYYBLU, CYYBUC, CYYBUD, CYYBUU
+  public :: CXC, CXL, CXR, CXXC, CXXL, CXXR, C1
+
+  integer :: NWDGE = 0    ! Viscous wedge parameters (0 = no wedge, 1 = Murman wedge, 2 = Yoshihara wedge)
+  integer :: SIMDEF = 3   ! Similarity scaling (1 = Cole, 2 = Spreiter, 3 = Krupp)
+
+  real :: F = 0.0, H = 0.0    ! User-input wall/tunnel constants
+
 
   real :: REYNLD = 4.0E6  ! Reynolds number
   real :: WCONST = 4.0    ! Wall constant
   real :: CIRCFF = 0.0    ! Circulation at farfield boundary
   real :: FHINV = 0.0     ! Inverse of Froude number
   real :: POR = 0.0       ! Porosity
+  real :: SONVEL = 0.0    ! Sonic velocity
 
   real :: DIAG(N_MESH_POINTS), RHS(N_MESH_POINTS)                     ! Tri-diagonal solver arrays
   real :: THETA(N_MESH_POINTS,N_MESH_POINTS)                          ! Angle array for each mesh point
 
+  real :: VFACT = 1.0, YFACT = 1.0
+
   ! Far-field boundary arrays
   real :: DTOP(N_MESH_POINTS), DBOT(N_MESH_POINTS), DUP(N_MESH_POINTS), DDOWN(N_MESH_POINTS)
   real :: VTOP(N_MESH_POINTS), VBOT(N_MESH_POINTS), VUP(N_MESH_POINTS), VDOWN(N_MESH_POINTS)
+
+  ! Boundary condition arrays
+  real :: FXLBC(N_MESH_POINTS) = 0.0, FXUBC(N_MESH_POINTS) = 0.0
+
+  ! Boundary differencing coefficients
+  real :: CYYC(N_MESH_POINTS), CYYD(N_MESH_POINTS), CYYU(N_MESH_POINTS)
+
+  ! Special boundary coefficient arrays
+  real :: CYYBLC, CYYBLD, CYYBLU, CYYBUC, CYYBUD, CYYBUU
+      
+  ! Central differencing coefficients
+  real :: CXC(N_MESH_POINTS), CXL(N_MESH_POINTS), CXR(N_MESH_POINTS)
+  real :: CXXC(N_MESH_POINTS), CXXL(N_MESH_POINTS), CXXR(N_MESH_POINTS)
+  real :: C1(N_MESH_POINTS)
 
   ! PRIVATE VARIABLES
   real :: ALPHA0, ALPHA1, ALPHA2, XSING, OMEGA0, OMEGA1, OMEGA2, JET  ! Far-field root parameters
@@ -32,13 +60,124 @@ module solver_module
 
 contains
 
+  
+  ! Scale physical variables to transonic similarity variables
+  ! Define scaling factors for physical variables:
+  !   CPFACT, CLFACT, CMFACT, CDFACT, VFACT, YFACT
+  subroutine SCALE()
+    ! IF PHYS = .TRUE., ALL INPUT/OUTPUT QUANTITIES ARE IN PHYSICAL UNITS NORMALIZED 
+    ! BY FREESTREAM VALUES AND AIRFOIL CHORD. 
+    ! THIS SUBROUTINE THEN SCALES THE QUANTITIES TO TRANSONIC VARIABLES BY THE FOLLOWING CONVENTION
+    !   SIMDEF = 1  COLE SCALING
+    !   SIMDEF = 2  SPREITER SCALING
+    !   SIMDEF = 3  KRUPP SCALING
+    ! IF PHYS = .FALSE., INPUT IS ALREADY IN SCALED VARIABLES AND NO FURTHER SCALING IS DONE.
+    ! CALLED BY - TSFOIL.
+    use common_data, only: CPFACT, CLFACT, CDFACT, CMFACT
+    use common_data, only: PHYS, EMACH
+    use common_data, only: AK, ALPHA, GAM1
+    use common_data, only: YIN, JMIN, JMAX
+    use common_data, only: H, CPSTAR, INPERR, UNIT_OUTPUT
+    use airfoil_module, only: DELTA
+    implicit none
+    real :: EMACH2, BETA, DELRT1, DELRT2
+    real :: YFACIV, EMROOT
+    integer :: J
+    
+    if (.not. PHYS) then
+      ! PHYS = .FALSE.  NO SCALING
+      CPFACT = 1.0
+      CDFACT = 1.0
+      CLFACT = 1.0
+      CMFACT = 1.0
+      YFACT = 1.0
+      VFACT = 1.0
+
+    else
+      ! PHYS = .TRUE.  COMPUTE CONSTANTS
+      EMACH2 = EMACH*EMACH
+      BETA = 1.0 - EMACH2
+      DELRT1 = DELTA**(1.0/3.0)
+      DELRT2 = DELTA**(2.0/3.0)
+
+      ! Branch to appropriate scaling
+      select case (SIMDEF)
+      case (1)
+        ! SIMDEF = 1
+        ! COLE SCALING
+        AK = BETA / DELRT2
+        YFACT = 1.0 / DELRT1
+        CPFACT = DELRT2
+        CLFACT = DELRT2
+        CDFACT = DELRT2 * DELTA
+        CMFACT = DELRT2
+        VFACT = DELTA * 57.295779
+        
+      case (2)
+        ! SIMDEF = 2
+        ! SPREITER SCALING
+        EMROOT = EMACH**(2.0/3.0)
+        AK = BETA / (DELRT2 * EMROOT * EMROOT)
+        YFACT = 1.0 / (DELRT1 * EMROOT)
+        CPFACT = DELRT2 / EMROOT
+        CLFACT = CPFACT
+        CMFACT = CPFACT
+        CDFACT = CPFACT * DELTA
+        VFACT = DELTA * 57.295779
+        
+      case (3)
+        ! SIMDEF = 3
+        ! KRUPP SCALING
+        AK = BETA / (DELRT2 * EMACH)
+        YFACT = 1.0 / (DELRT1 * EMACH**0.5)
+        CPFACT = DELRT2 / (EMACH**0.75)
+        CLFACT = CPFACT
+        CMFACT = CPFACT
+        CDFACT = CPFACT * DELTA
+        VFACT = DELTA * 57.295779
+        
+      case default
+        write(UNIT_OUTPUT, '(A, /, A)') '1ABNORMAL STOP IN SUBROUTINE SCALE', ' INVALID SIMDEF VALUE'
+        stop
+
+      end select
+
+      ! SCALE Y MESH
+      YFACIV = 1.0 / YFACT
+      do J = JMIN, JMAX
+        YIN(J) = YIN(J) * YFACIV
+      end do
+
+      ! SCALE TUNNEL PARAMETERS
+      H = H / YFACT
+      POR = POR * YFACT
+      write(UNIT_OUTPUT,'(//10X,11HSCALED POR=,F10.5)') POR
+
+      ! SCALE ANGLE OF ATTACK
+      ALPHA = ALPHA / VFACT
+    end if
+
+    ! CHECK VALUE OF AK FOR DEFAULT.
+    if (AK == 0.0) call INPERR(7)
+
+    ! COMPUTE SONIC VELOCITY
+    if (abs(GAM1) <= 0.0001) then
+      SONVEL = 1.0
+      CPSTAR = 0.0
+      return
+    end if
+    
+    SONVEL = AK / GAM1
+    CPSTAR = -2.0 * SONVEL * CPFACT
+    return
+
+  end subroutine SCALE  
+  
   ! Compute finite-difference coefficients in x and y directions
   subroutine DIFCOE()
     use common_data, only: IMIN, IMAX, JMIN, JMAX, X, Y, GAM1, AK
-    use common_data, only: CXC, CXL, CXR, CXXC, CXXL, CXXR, C1
-    use common_data, only: CYYC, CYYD, CYYU, XDIFF, YDIFF
+    use common_data, only: XDIFF, YDIFF
     use common_data, only: JLOW, JUP, CJUP, CJUP1, CJLOW, CJLOW1
-    use common_data, only: CYYBUD, CYYBUC, CYYBUU, CYYBLU, CYYBLC, CYYBLD
     implicit none
     integer :: I, J, ISTART, IEND, JSTART, JEND
     real :: DXL, DXR, DXC, DYD, DYU, DYC, DX, DYU_MIN, C2, Q
@@ -148,9 +287,8 @@ contains
   ! FXLBC for use in subroutine SYOR.
   subroutine SETBC(IJUMP)
     use common_data, only: IMIN, IMAX, IUP, IDOWN, JMIN, JMAX, JTOP, JBOT
-    use common_data, only: ILE, ITE, FXLBC, FXUBC, FXL, FXU
-    use common_data, only: AK, ALPHA, BCTYPE, IFOIL
-    use common_data, only: CYYBLU, CYYBUD
+    use common_data, only: ILE, ITE, FXL, FXU
+    use common_data, only: AK, ALPHA, BCTYPE
     implicit none
     integer, intent(in) :: IJUMP
     integer, parameter :: KSTEP = 1 ! Step size for circulation-jump boundary update
@@ -182,9 +320,9 @@ contains
     ! Enter body slopes at mesh points on airfoil
     ! into arrays for body boundary conditions
     NFOIL = ITE - ILE + 1
-    IF1 = IFOIL + KSTEP
+    IF1 = NFOIL + KSTEP
     I = ITE + 1
-    
+
     do N = 1, NFOIL
       I = I - 1
       IF1 = IF1 - KSTEP
@@ -194,21 +332,21 @@ contains
 
   end subroutine SETBC
 
-  ! Apply boundary conditions on each i-line (upper/lower boundaries)
-  ! SUBROUTINE BCEND modifies the DIAG and RHS vectors
-  ! on each I line in the appropriate way to include the
-  ! boundary conditions at JBOT and JTOP.
+  ! Apply boundary conditions on each i-line (upper/lower boundaries),
+  ! which modifies the DIAG and RHS vectors on each I line in the
+  ! appropriate way to include the boundary conditions at JBOT and JTOP.
   ! Called by - SYOR.
-  subroutine BCEND()    
+  subroutine BCEND(IVAL)    
     use common_data, only: P, X, Y, IUP, IDOWN, &
                           JMIN, JMAX, JTOP, JBOT, &
-                          AK, RTK, &
-                          XDIFF, CYYD, CYYU, IVAL, &
+                          AK, &
+                          XDIFF, &
                           BCTYPE, UNIT_OUTPUT
     implicit none
+    integer, intent(in) :: IVAL
     
     integer :: I, II
-    real :: DFACL, DFACU, RFACL, RFACU, PJMIN, PJMAX, TERM
+    real :: DFACL, DFACU, RFACL, RFACU, PJMIN, PJMAX, TERM, RTK
     logical :: apply_dirichlet, apply_neumann
     
     I = IVAL
@@ -222,7 +360,9 @@ contains
       ! BCTYPE = 1, FREE AIR
       ! Dirichlet boundary condition for subsonic freestream
       if (AK > 0.0) return
+
       ! Neumann boundary condition for supersonic freestream
+      RTK = sqrt(abs(AK))
       DFACL = -CYYD(JBOT) * RTK * XDIFF(I)
       DFACU = -CYYU(JTOP) * RTK * XDIFF(I)
       RFACL = DFACL * (P(JMIN,I) - P(JMIN,I-1))
@@ -326,7 +466,7 @@ contains
 
   ! Compute far-field boundary conditions for outer boundaries
   subroutine FARFLD()
-    use common_data, only: AK, RTK, X, Y, IMIN, IMAX, JMIN, JMAX
+    use common_data, only: AK, X, Y, IMIN, IMAX, JMIN, JMAX
     use common_data, only: BCTYPE, F, H, PI, TWOPI, HALFPI
     use common_data, only: UNIT_OUTPUT
     implicit none
@@ -334,6 +474,7 @@ contains
     real :: YT, YB, XU_BC, XD_BC, YT2, YB2, XU2, XD2, COEF1, COEF2
     real :: XP, XP2, YJ, YJ2, Q, ARG0, ARG1, ARG2
     real :: EXARG0, EXARG1, EXARG2, TERM
+    real :: RTK
 
     ! Test for supersonic or subsonic freestream
     if (AK <= 0.0) then
@@ -348,6 +489,8 @@ contains
       ! Top and bottom boundaries use simple wave solution.
       return
     end if
+
+    RTK = sqrt(abs(AK))
 
     ! Subsonic freestream
     ! Functional form of the potential on outer boundaries is prescribed.
@@ -527,13 +670,15 @@ contains
 
   ! Compute the angle THETA at each mesh point
   subroutine ANGLE()
-    use common_data, only: IMIN, IMAX, JMIN, JMAX, X, Y, RTK
-    use common_data, only: PI, TWOPI
+    use common_data, only: IMIN, IMAX, JMIN, JMAX, X, Y
+    use common_data, only: PI, TWOPI, AK
     implicit none
     integer :: I, J
     real :: XX, YY, R, ATN, Q, R2PI
+    real :: RTK
     
     R2PI = 1.0 / TWOPI
+    RTK = sqrt(abs(AK))
     
     do I = IMIN, IMAX
       XX = X(I) - XSING
@@ -555,9 +700,7 @@ contains
     use common_data, only: X, ILE, ITE
     use common_data, only: JUP, JLOW
     use common_data, only: GAM1, XDIFF
-    use common_data, only: DELTA
-    use common_data, only: SONVEL
-    use common_data, only: NWDGE
+    use airfoil_module, only: DELTA
     use math_module, only: PX, EMACH1, FINDSK
     implicit none
 
@@ -595,7 +738,7 @@ contains
     M = 1
     
     do while (M <= 2)
-      call FINDSK(ISTART, ITE, merge(JUP, JLOW, M==1), ISK)
+      call FINDSK(ISTART, ITE, merge(JUP, JLOW, M==1), SONVEL, ISK)
       if (ISK < 0) then
         if (M == 1) then
           ! Move to lower surface
@@ -619,7 +762,7 @@ contains
       ! Compute flow properties 3 points upstream
       ISK3 = ISK - 3
       U = PX(ISK3, merge(JUP, JLOW, M==1))
-      AM1(M,N) = EMACH1(U)
+      AM1(M,N) = EMACH1(U, DELTA, SIMDEF)
       AM1SQ = AM1(M,N) * AM1(M,N)
       
       if (AM1SQ <= 1.0) then

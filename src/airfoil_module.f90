@@ -5,9 +5,30 @@ module airfoil_module
   use common_data, only: N_MESH_POINTS
   implicit none
   private
+  public :: IFLAP, DELFLP, FLPLOC
+  public :: NU, NL, XL, XU, YL, YU, VOL, DELTA
   public :: BODY, PRBODY
 
+  ! User-input airfoil parameters
+  integer :: NU = 0, NL = 0 ! Number of lower/upper surface grid points
+  real :: DELTA = 0.0       ! Maximum thickness of airfoil (set to zero to raise error)
+
+  ! User-input flap parameters
+  integer :: IFLAP = 0      ! Flap flag
+  real :: DELFLP = 0.0      ! Flap deflection angle  
+  real :: FLPLOC = 0.77     ! Flap location
+
+  ! User-input airfoil coordinates
+  real :: XL(N_MESH_POINTS) = 0.0, XU(N_MESH_POINTS) = 0.0
+  real :: YL(N_MESH_POINTS) = 0.0, YU(N_MESH_POINTS) = 0.0
+
+  ! Global airfoil data
+  real :: VOL = 0.0
+
+  ! Local airfoil arrays
+  integer :: NFOIL = 0
   real :: CAMBER(N_MESH_POINTS), THICK(N_MESH_POINTS), XFOIL(N_MESH_POINTS)
+  real :: FU(N_MESH_POINTS) = 0.0, FL(N_MESH_POINTS) = 0.0 ! Surface and flow arrays
 
 contains
 
@@ -18,9 +39,9 @@ contains
   ! Called by - BODYil geometry: thickness, camber, volume
   subroutine BODY()
     use common_data, only: IMIN, IMAX, ILE, ITE, X
-    use common_data, only: FL, FXL, FU, FXU, VOL, IFOIL
-    use common_data, only: NL, NU, XL, XU, YL, YU, RIGF, IFLAP, DELFLP, FLPLOC
-    use common_data, only: PHYS, DELTA
+    use common_data, only: FXL, FXU
+    use common_data, only: RIGF
+    use common_data, only: PHYS
     use math_module, only: SIMP
     use spline_module, only: SPLN1, SPLN1X, set_boundary_conditions
     implicit none
@@ -32,7 +53,7 @@ contains
     if (PHYS) DELINV = 1.0/DELTA
 
     ! Number of points on airfoil
-    IFOIL = ITE - ILE + 1
+    NFOIL = ITE - ILE + 1
 
     ! Zero previous arrays
     do I = IMIN, IMAX
@@ -75,20 +96,20 @@ contains
 
 
     ! Compute volume by Simpson's rule
-    call SIMP(VOLU, XFOIL, FU, IFOIL, IERR)
-    call SIMP(VOLL, XFOIL, FL, IFOIL, IERR)
+    call SIMP(VOLU, XFOIL, FU, NFOIL, IERR)
+    call SIMP(VOLL, XFOIL, FL, NFOIL, IERR)
     VOL = VOLU - VOLL
 
     ! Add flap deflection if any
     if (IFLAP /= 0) then
       DFLAP = DELFLP/57.29578
       SDFLAP = sin(DFLAP)
-      do I = 1, IFOIL
+      do I = 1, NFOIL
         if (XFOIL(I) >= FLPLOC) exit
       end do
 
       IFP = I
-      do I = IFP, IFOIL
+      do I = IFP, NFOIL
         DELY = (XFOIL(I)-FLPLOC)*SDFLAP*DELINV
         FU(I) = FU(I) - DELY
         FL(I) = FL(I) - DELY
@@ -99,7 +120,7 @@ contains
     end if
 
     ! Compute camber and thickness
-    do I = 1, IFOIL
+    do I = 1, NFOIL
       CAMBER(I) = 0.5*(FU(I)+FL(I))
       THICK(I) = 0.5*(FU(I)-FL(I))
       FXU(I) = FXU(I)/sqrt(1.0+RIGF*(DELTA*FXU(I))**2)
@@ -117,7 +138,7 @@ contains
   ! If PHYS = .FALSE. all dimensions except X are normalized by chord length and thickness ratio
   ! Called by - BODY
   subroutine PRBODY()
-    use common_data, only: FL, FXL, FU, FXU, VOL, IFOIL, PHYS, DELTA, UNIT_OUTPUT
+    use common_data, only: FXL, FXU, PHYS, UNIT_OUTPUT
     implicit none
     real :: THMAX, CAMAX, VOLUME, YUP, YXUP, YLO, YXLO, TH, CA
     integer :: II    
@@ -129,7 +150,7 @@ contains
     THMAX = 0.0
     CAMAX = 0.0
 
-    do II = 1, IFOIL
+    do II = 1, NFOIL
       THMAX = amax1(THMAX, THICK(II))
       CAMAX = amax1(CAMAX, CAMBER(II))
     end do
@@ -142,7 +163,7 @@ contains
       write(UNIT_OUTPUT, '(1x,"AIRFOIL VOLUME =",F12.8,32X,"MAX CAMBER    =",F10.6//20X,"UPPER  SURFACE",14X,"LOWER  SURFACE")') VOL, CAMAX
       write(UNIT_OUTPUT, '(8X,"X",1X,2(12X,"F",9X,"DF/DX"),8X,"THICKNESS",4X,"CAMBER")')
 
-      do II = 1, IFOIL
+      do II = 1, NFOIL
         write(UNIT_OUTPUT, '(1X,F12.8,2X,2F12.8,2(3X,2F12.8))') XFOIL(II), FU(II), FXU(II), FL(II), FXL(II), THICK(II), CAMBER(II)
       end do
 
@@ -155,7 +176,7 @@ contains
       write(UNIT_OUTPUT, '(1x,"AIRFOIL VOLUME =",F12.8,32X,"MAX CAMBER    =",F10.6//20X,"UPPER  SURFACE",14X,"LOWER  SURFACE")') VOLUME, CAMAX
       write(UNIT_OUTPUT, '(8X,"X",1X,2(12X,"Y",9X,"DY/DX"),8X,"THICKNESS",4X,"CAMBER")')
 
-      do II = 1, IFOIL
+      do II = 1, NFOIL
         YUP = DELTA*FU(II)
         YXUP = DELTA*FXU(II)
         YLO = DELTA*FL(II)

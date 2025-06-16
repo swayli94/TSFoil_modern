@@ -77,6 +77,8 @@ main.f90
    | `TRAP` | Integrate Y DX by trapezoidal rule | ✅ |
    | `FINDSK` | Find shock location | ✅ |
    | `NEWISK` | Shock index adjustment | ✅ |
+   | `CDCOLE` | Drag coefficient assembly | ✅ |
+   | `PRTSK` | Shock wave output | ✅ |
    | `report_convergence_error` | Report convergence errors | ✅ |
 
 4. **`airfoil_module.f90`** - Geometry handling
@@ -125,9 +127,7 @@ main.f90
    |---------------------|-------------|--------|
    | `READIN` | Input parameter reading | ✅ |
    | `SCALE` | Variable scaling | ✅ |
-   | `CDCOLE` | Drag coefficient assembly | ✅ |
    | `PRINT` | Main output driver | ✅ |
-   | `PRTSK` | Shock wave output | ✅ |
    | `PRTWAL` | Wind tunnel wall condition output | ✅ |
 
 9. **`no_used_subroutines.f90`** - Subroutines that are not used
