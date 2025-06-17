@@ -1,14 +1,9 @@
 ! solver_base.f90
-! Data structure: 
-!   - Control parameters
-!   - Global variables for post-processing
-!   - Local variables for numerical solver
 ! Base functions (that are not affected by methods of scaling, correction, etc.):
 !   - Finite difference functions
 !   - Post-processing functions
 
 module solver_base
-    use common_data, only: N_MESH_POINTS
     implicit none
     private
 
@@ -16,29 +11,12 @@ module solver_base
     public :: PX, PY, DIFCOE, ANGLE
     public :: LIFT, PITCH, FINDSK, CDCOLE
 
-    ! Public variables
-    public :: THETA, XSING
-    public :: CYYC, CYYD, CYYU
-    public :: CYYBLC, CYYBLD, CYYBLU, CYYBUC, CYYBUD, CYYBUU
-    public :: CXC, CXL, CXR, CXXC, CXXL, CXXR, C1
-
-    real :: THETA(N_MESH_POINTS,N_MESH_POINTS)  ! Angle array for each mesh point
-    real, parameter :: XSING = 0.5 ! Location of singular vortex and doublet (X=XSING, Y=0)
-
-    real :: CYYC(N_MESH_POINTS), CYYD(N_MESH_POINTS), CYYU(N_MESH_POINTS) ! Boundary differencing coefficients
-    real :: CYYBLC, CYYBLD, CYYBLU, CYYBUC, CYYBUD, CYYBUU ! Special boundary coefficient arrays
-
-    real :: CXC(N_MESH_POINTS), CXL(N_MESH_POINTS), CXR(N_MESH_POINTS) ! (P)X central differencing coefficients
-    real :: CXXC(N_MESH_POINTS), CXXL(N_MESH_POINTS), CXXR(N_MESH_POINTS) ! (P)XX central differencing coefficients
-    real :: C1(N_MESH_POINTS) ! Velocity coefficient
-
-    ! Private variables
-
 contains
 
     ! Computes U = DP/DX at point I,J
     function PX(I, J) result(result_px)
-        use common_data, only: IMIN, IMAX, P, XDIFF
+        use common_data, only: IMIN, IMAX, XDIFF
+        use solver_data, only: P
         implicit none
         integer, intent(in) :: I, J
         real :: result_px
@@ -63,8 +41,9 @@ contains
       
     ! Computes V = DP/DY at point I,J
     function PY(I, J) result(result_py)
-        use common_data, only: JMIN, JMAX, JUP, JLOW, ILE, ITE, P
-        use common_data, only: YDIFF, ALPHA, FXL, FXU, PJUMP
+        use common_data, only: JMIN, JMAX, JUP, JLOW, ILE, ITE
+        use common_data, only: YDIFF, ALPHA, FXU, FXL
+        use solver_data, only: P, PJUMP
         implicit none
         integer, intent(in) :: I, J
         real :: result_py
@@ -132,7 +111,11 @@ contains
     subroutine DIFCOE()
         use common_data, only: IMIN, IMAX, JMIN, JMAX, X, Y, GAM1, AK
         use common_data, only: XDIFF, YDIFF
-        use common_data, only: JLOW, JUP, CJUP, CJUP1, CJLOW, CJLOW1
+        use common_data, only: JLOW, JUP
+        use solver_data, only: CJUP, CJUP1, CJLOW, CJLOW1
+        use solver_data, only: CXXL, CXXR, CXXC, CXL, CXR, CXC
+        use solver_data, only: CYYD, CYYU, CYYC, CYYBUD, CYYBUC, CYYBUU, CYYBLC, CYYBLD, CYYBLU
+        use solver_data, only: C1
         implicit none
         integer :: I, J, ISTART, IEND, JSTART, JEND
         real :: DXL, DXR, DXC, DYD, DYU, DYC, DX, DYU_MIN, C2, Q
@@ -237,6 +220,7 @@ contains
     subroutine ANGLE()
         use common_data, only: IMIN, IMAX, JMIN, JMAX, X, Y
         use common_data, only: PI, TWOPI, AK
+        use solver_data, only: THETA, XSING
         implicit none
         integer :: I, J
         real :: XX, YY, R, ATN, Q, R2PI
@@ -262,8 +246,9 @@ contains
     ! Computes pressure drag coefficient by integrating
     ! U*V around airfoil using trapezoidal rule.
     function DRAG(CDFACT_in) result(result_drag)
-        use common_data, only: X, ILE, ITE, JUP, JLOW, CJUP, CJUP1, CJLOW, CJLOW1
+        use common_data, only: X, ILE, ITE, JUP, JLOW
         use common_data, only: FXU, FXL, N_MESH_POINTS
+        use solver_data, only: CJUP, CJUP1, CJLOW, CJLOW1
         use math_module, only: TRAP
         implicit none
         real, intent(in) :: CDFACT_in
@@ -293,7 +278,8 @@ contains
     
     ! Computes lift coefficient from jump in P at trailing edge
     function LIFT(CLFACT_in) result(result_lift)
-        use common_data, only: P, JUP, ITE, JLOW, CJUP, CJUP1, CJLOW, CJLOW1
+        use common_data, only: JUP, ITE, JLOW
+        use solver_data, only: CJUP, CJUP1, CJLOW, CJLOW1, P
         implicit none
         real, intent(in) :: CLFACT_in
         real :: result_lift
@@ -307,8 +293,8 @@ contains
       
     ! Computes airfoil pitching moment about X = XM, Y = 0
     function PITCH(CMFACT_in) result(result_pitch)
-        use common_data, only: P, X, ILE, ITE, JUP, JLOW, CJUP, CJUP1, CJLOW, CJLOW1
-        use common_data, only: N_MESH_POINTS
+        use common_data, only: X, ILE, ITE, JUP, JLOW, N_MESH_POINTS
+        use solver_data, only: CJUP, CJUP1, CJLOW, CJLOW1, P
         use math_module, only: TRAP
         implicit none
         real, intent(in) :: CMFACT_in
@@ -339,10 +325,11 @@ contains
     subroutine CDCOLE(SONVEL, YFACT, DELTA)
         use common_data, only: X, Y, IMIN, IMAX, IUP, ILE, ITE, N_MESH_POINTS
         use common_data, only: JMIN, JMAX, JUP, JLOW
-        use common_data, only: AK, GAM1, CJUP, CJUP1, CJLOW, CJLOW1
-        use common_data, only: CDFACT
+        use common_data, only: AK, GAM1
         use common_data, only: FXL, FXU
         use common_data, only: UNIT_OUTPUT, UNIT_SUMMARY
+        use solver_data, only: CJUP, CJUP1, CJLOW, CJLOW1
+        use solver_data, only: CDFACT
         use math_module, only: TRAP
         implicit none
     
@@ -717,7 +704,8 @@ contains
     ! Print shock wave drag contributions and total pressure loss along shock wave
     ! Called by - CDCOLE
     subroutine PRTSK(XI,ARG,L,NSHOCK,CDSK,LPRT1,YFACT,DELTA)
-        use common_data, only: CDFACT, GAM1, UNIT_OUTPUT, N_MESH_POINTS
+        use common_data, only: GAM1, UNIT_OUTPUT, N_MESH_POINTS
+        use solver_data, only: CDFACT
         implicit none
         real, intent(in) :: XI(N_MESH_POINTS), ARG(N_MESH_POINTS)
         integer, intent(in) :: L, NSHOCK, LPRT1

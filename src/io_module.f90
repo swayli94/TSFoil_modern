@@ -3,10 +3,8 @@
 
 module io_module
   use common_data
-  use airfoil_module, only: IFLAP, DELFLP, FLPLOC, NU, NL, XL, XU, YL, YU, DELTA
-  use main_iteration, only: IPRTER, MAXIT, WE, CVERGE, DVERGE, WCIRC
-  use solver_functions, only: REYNLD, WCONST, POR, SIMDEF, NWDGE, F, H
   implicit none
+  private
 
   ! User-input parameters
   namelist /INP/ AK, ALPHA, BCTYPE, CLSET, &
@@ -23,7 +21,7 @@ module io_module
   real :: CPU(N_MESH_POINTS), CPL(N_MESH_POINTS)
 
   ! Declare public procedures
-  public :: READIN, PRINT
+  public :: READIN, PRINT, OUTPUT_MESH
   public :: open_output_files, close_output_files
 
 contains
@@ -52,9 +50,7 @@ contains
   ! Reads title card, namelist input, and manages restart data for current case  
   ! The original READIN is designed to be called once per case from main program
   subroutine READIN()
-    use common_data
     use mesh_module, only: setup_mesh
-    use solver_functions, only: H
     implicit none    
     character(len=100) :: IN_FILENAME, TITLE
     integer :: ios
@@ -114,11 +110,9 @@ contains
   ! specialized print/plot subroutines as required.
   ! Matches original PRINT subroutine functionality exactly
   subroutine PRINT()
-    use common_data
+    use solver_data, only: DUB, SONVEL, ABORT1
+    use solver_data, only: CPFACT, CDFACT, CMFACT, CLFACT, YFACT, VFACT
     use solver_base, only: PITCH, LIFT, CDCOLE
-    use airfoil_module, only: DELTA
-    use main_iteration, only: DUB
-    use solver_functions, only: SIMDEF, SONVEL, VFACT, YFACT
     implicit none
 
     ! Write page break
@@ -207,9 +201,9 @@ contains
   ! Print Cp and Mach along body and build plot arrays
   ! Prints pressure coefficient and Mach number on Y=0 line, and plots CP along side of print
   subroutine PRINT_SHOCK()
-    use common_data
     use solver_base, only: PX, LIFT, PITCH
-    use airfoil_module, only: DELTA
+    use solver_data, only: CPFACT, CLFACT, CMFACT, CPSTAR
+    use solver_data, only: CJLOW, CJLOW1, CJUP, CJUP1
     use solver_functions, only: EMACH1
     implicit none
     
@@ -269,8 +263,6 @@ contains
 
   ! Output settings and parameters to output file
   subroutine OUTPUT_PARAMETERS()
-    use common_data
-    use solver_functions, only: POR, H
     implicit none
     integer :: IDX, JDX
     
@@ -323,7 +315,6 @@ contains
 
   ! Output mesh data to file in Tecplot format
   subroutine OUTPUT_MESH(OPTIONAL_FILE_NAME)
-    use common_data, only: X, Y, JMIN, JMAX, UNIT_MESH, IMIN, IMAX
     implicit none
     integer :: I_P1, J_P1
     character(len=*), optional :: OPTIONAL_FILE_NAME
@@ -350,9 +341,7 @@ contains
 
   ! Output Cp, Mach distribution on a x-line (Y=0) in Tecplot format
   subroutine OUTPUT_CP_MACH_XLINE(CL_val, CM, EM1U, EM1L)
-    use common_data, only: IMIN, IMAX, UNIT_CPXS
-    use common_data, only: X, EMACH, CPSTAR, ALPHA
-    use solver_functions, only: VFACT
+    use solver_data, only: VFACT, CPSTAR
     implicit none
     real, intent(in) :: CL_val, CM
     real, intent(in) :: EM1U(:), EM1L(:)
@@ -383,13 +372,9 @@ contains
 
   ! Output field in Tecplot format
   subroutine OUTPUT_FIELD()
-    use common_data, only: UNIT_FIELD, X, Y, JMIN, JMAX, IMIN, IMAX, CPFACT
-    use common_data, only: EMACH, ALPHA, N_MESH_POINTS
-    use common_data, only: P, IUP, IDOWN
+    use solver_data, only: P, VFACT, C1, CXL, CXC, CXR, CPFACT
     use solver_base, only: PX
-    use airfoil_module, only: DELTA
-    use solver_functions, only: EMACH1, VFACT
-    use solver_base, only: C1, CXL, CXC, CXR
+    use solver_functions, only: EMACH1
     implicit none
     integer :: I, J
     real :: U, EM, CP_VAL, FLOW_TYPE_NUM
@@ -462,12 +447,8 @@ contains
   ! Prints pressure coefficient and flow angle on Y=-H and Y=+H, 
   ! and plots CP along side of tabulation. 
   subroutine PRTWAL()
-    use common_data, only: P, X, Y, CPFACT, JMIN, JMAX, &
-                          IUP, IDOWN, JBOT, JTOP, JTOP, JBOT, &
-                          BCTYPE, CPSTAR, &
-                          XDIFF, UNIT_OUTPUT
     use solver_base, only: PX, PY
-    use solver_functions, only: POR, CIRCFF, FHINV, VFACT, YFACT, F, H
+    use solver_data, only: P, CIRCFF, FHINV, VFACT, YFACT, CPFACT, CPSTAR
     implicit none
     
     ! Local variables

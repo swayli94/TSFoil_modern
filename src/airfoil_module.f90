@@ -5,30 +5,8 @@ module airfoil_module
   use common_data, only: N_MESH_POINTS
   implicit none
   private
-  public :: IFLAP, DELFLP, FLPLOC
-  public :: NU, NL, XL, XU, YL, YU, VOL, DELTA
+  
   public :: BODY, PRBODY
-
-  ! User-input airfoil parameters
-  integer :: NU = 0, NL = 0 ! Number of lower/upper surface grid points
-  real :: DELTA = 0.0       ! Maximum thickness of airfoil (set to zero to raise error)
-
-  ! User-input flap parameters
-  integer :: IFLAP = 0      ! Flap flag
-  real :: DELFLP = 0.0      ! Flap deflection angle  
-  real :: FLPLOC = 0.77     ! Flap location
-
-  ! User-input airfoil coordinates
-  real :: XL(N_MESH_POINTS) = 0.0, XU(N_MESH_POINTS) = 0.0
-  real :: YL(N_MESH_POINTS) = 0.0, YU(N_MESH_POINTS) = 0.0
-
-  ! Global airfoil data
-  real :: VOL = 0.0
-
-  ! Local airfoil arrays
-  integer :: NFOIL = 0
-  real :: CAMBER(N_MESH_POINTS), THICK(N_MESH_POINTS), XFOIL(N_MESH_POINTS)
-  real :: FU(N_MESH_POINTS) = 0.0, FL(N_MESH_POINTS) = 0.0 ! Surface and flow arrays
 
 contains
 
@@ -39,14 +17,15 @@ contains
   ! Called by - BODYil geometry: thickness, camber, volume
   subroutine BODY()
     use common_data, only: IMIN, IMAX, ILE, ITE, X
-    use common_data, only: FXL, FXU
-    use common_data, only: RIGF
-    use common_data, only: PHYS
+    use common_data, only: DELTA, VOL, XU, YU, XL, YL, NU, NL
+    use common_data, only: RIGF, PHYS
+    use common_data, only: IFLAP, DELFLP, FLPLOC
+    use common_data, only: NFOIL, FU, FL, FXU, FXL, CAMBER, THICK, XFOIL
     use math_module, only: SIMP
     use spline_module, only: SPLN1, SPLN1X, set_boundary_conditions
     implicit none
     integer :: I, IC, IFP, IERR
-    real :: DELINV, DY1, DY2, XP, YP, DYP
+    real :: DELINV, DY1, DY2, YP, DYP
     real :: VOLU, VOLL, DFLAP, SDFLAP, DELY
 
     DELINV = 1.0
@@ -73,9 +52,8 @@ contains
     IC = 0
     do I = ILE, ITE
       IC = IC + 1
-      XP = X(I)
-      XFOIL(IC) = XP
-      call SPLN1X(XU, YU, NU, XP, YP, DYP)
+      XFOIL(IC) = X(I)
+      call SPLN1X(XU, YU, NU, X(I), YP, DYP)
       FU(IC) = YP*DELINV
       FXU(IC) = DYP*DELINV
     end do
@@ -88,12 +66,10 @@ contains
     IC = 0
     do I = ILE, ITE
       IC = IC + 1
-      XP = X(I)
-      call SPLN1X(XL, YL, NL, XP, YP, DYP)
+      call SPLN1X(XL, YL, NL, X(I), YP, DYP)
       FL(IC) = YP*DELINV
       FXL(IC) = DYP*DELINV
     end do
-
 
     ! Compute volume by Simpson's rule
     call SIMP(VOLU, XFOIL, FU, NFOIL, IERR)
@@ -138,7 +114,10 @@ contains
   ! If PHYS = .FALSE. all dimensions except X are normalized by chord length and thickness ratio
   ! Called by - BODY
   subroutine PRBODY()
-    use common_data, only: FXL, FXU, PHYS, UNIT_OUTPUT
+    use common_data, only: PHYS, UNIT_OUTPUT
+    use common_data, only: NFOIL, THICK, CAMBER, VOL
+    use common_data, only: DELTA
+    use common_data, only: XFOIL, FU, FXU, FL, FXL
     implicit none
     real :: THMAX, CAMAX, VOLUME, YUP, YXUP, YLO, YXLO, TH, CA
     integer :: II    

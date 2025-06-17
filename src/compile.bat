@@ -36,6 +36,10 @@ echo Compiling common_data module...
 gfortran %FFLAGS% -c common_data.f90
 if errorlevel 1 goto error
 
+echo Compiling solver_data...
+gfortran %FFLAGS% -c solver_data.f90
+if errorlevel 1 goto error
+
 echo Compiling spline_module...
 gfortran %FFLAGS% -c spline_module.f90
 if errorlevel 1 goto error
@@ -70,7 +74,7 @@ if errorlevel 1 goto error
 
 REM Compile main program and link
 echo Compiling main program and linking...
-gfortran %FFLAGS% -o tsfoil_modern.exe main.f90 common_data.o spline_module.o math_module.o airfoil_module.o mesh_module.o solver_base.o solver_functions.o main_iteration.o io_module.o
+gfortran %FFLAGS% -o tsfoil_modern.exe main.f90 common_data.o spline_module.o math_module.o airfoil_module.o mesh_module.o solver_data.o solver_base.o solver_functions.o main_iteration.o io_module.o
 if errorlevel 1 goto error
 
 move tsfoil_modern.exe ..\ 2>nul

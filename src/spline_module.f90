@@ -10,7 +10,6 @@ module spline_module
   real, allocatable :: A(:), B(:)
   real :: DY1, DY2  ! Derivatives at endpoints
   integer :: K1, K2 ! Boundary condition types
-  integer :: max_n  ! Maximum number of points
 
 contains
 
@@ -18,7 +17,6 @@ contains
   subroutine initialize_spline(max_points)
     implicit none
     integer, intent(in) :: max_points
-    max_n = max_points
     if (allocated(A)) deallocate(A)
     if (allocated(B)) deallocate(B)
     allocate(A(2*max_points), B(2*max_points))

@@ -2,47 +2,11 @@
 ! Key functions for the solver
 
 module solver_functions
-    use common_data, only: N_MESH_POINTS
     implicit none
     private
 
-    public :: SETBC, BCEND, FARFLD, SCALE, EMACH1
-    public :: DIAG, RHS, VWEDGE
-    public :: SIMDEF, NWDGE, F, H
-    public :: REYNLD, WCONST, CIRCFF, FHINV, POR, SONVEL, VFACT, YFACT
-    public :: DTOP, DBOT, VTOP, VBOT, DUP, DDOWN, VUP, VDOWN
-    public :: FXLBC, FXUBC
-
-    integer :: NWDGE = 0    ! Viscous wedge parameters (0 = no wedge, 1 = Murman wedge, 2 = Yoshihara wedge)
-    integer :: SIMDEF = 3   ! Similarity scaling (1 = Cole, 2 = Spreiter, 3 = Krupp)
-
-    real :: F = 0.0, H = 0.0    ! User-input wall/tunnel constants
-
-
-    real :: REYNLD = 4.0E6  ! Reynolds number
-    real :: WCONST = 4.0    ! Wall constant
-    real :: CIRCFF = 0.0    ! Circulation at farfield boundary
-    real :: FHINV = 0.0     ! Inverse of Froude number
-    real :: POR = 0.0       ! Porosity
-    real :: SONVEL = 0.0    ! Sonic velocity
-
-    real :: DIAG(N_MESH_POINTS), RHS(N_MESH_POINTS)                     ! Tri-diagonal solver arrays
-
-    real :: VFACT = 1.0, YFACT = 1.0
-
-    ! Far-field boundary arrays
-    real :: DTOP(N_MESH_POINTS), DBOT(N_MESH_POINTS), DUP(N_MESH_POINTS), DDOWN(N_MESH_POINTS)
-    real :: VTOP(N_MESH_POINTS), VBOT(N_MESH_POINTS), VUP(N_MESH_POINTS), VDOWN(N_MESH_POINTS)
-
-    ! Boundary condition arrays
-    real :: FXLBC(N_MESH_POINTS) = 0.0, FXUBC(N_MESH_POINTS) = 0.0
+    public :: SETBC, BCEND, FARFLD, SCALE, EMACH1, VWEDGE
     
-    ! PRIVATE VARIABLES
-    real :: ALPHA0, ALPHA1, ALPHA2, OMEGA0, OMEGA1, OMEGA2, JET     ! Far-field root parameters
-    real :: B_COEF, BETA0, BETA1, BETA2, PSI0, PSI1, PSI2               ! Vortex/doublet parameters
-    real :: WSLP(N_MESH_POINTS,2)                                       ! Viscous wedge slopes
-    real :: RTKPOR = 0.0
-
 contains
 
   
@@ -58,12 +22,11 @@ contains
     ! IF PHYS = .FALSE., INPUT IS ALREADY IN SCALED VARIABLES AND NO FURTHER SCALING IS DONE.
     ! CALLED BY - TSFOIL.
     subroutine SCALE()
-        use common_data, only: CPFACT, CLFACT, CDFACT, CMFACT
-        use common_data, only: PHYS, EMACH
+        use common_data, only: PHYS, EMACH, SIMDEF
         use common_data, only: AK, ALPHA, GAM1
-        use common_data, only: YIN, JMIN, JMAX
-        use common_data, only: CPSTAR, INPERR, UNIT_OUTPUT
-        use airfoil_module, only: DELTA
+        use common_data, only: YIN, JMIN, JMAX, DELTA, H, POR
+        use common_data, only: INPERR, UNIT_OUTPUT
+        use solver_data, only: CPSTAR, CPFACT, CLFACT, CDFACT, CMFACT, YFACT, VFACT, SONVEL
         implicit none
         real :: EMACH2, BETA, DELRT1, DELRT2
         real :: YFACIV, EMROOT
@@ -166,9 +129,9 @@ contains
     ! FXLBC for use in subroutine SYOR.
     subroutine SETBC(IJUMP)
         use common_data, only: IMIN, IMAX, IUP, IDOWN, JMIN, JMAX, JTOP, JBOT
-        use common_data, only: ILE, ITE, FXL, FXU
+        use common_data, only: ILE, ITE, FXL, FXU, POR
         use common_data, only: AK, ALPHA, BCTYPE
-        use solver_base, only: CYYBLU, CYYBUD
+        use solver_data, only: CYYBLU, CYYBUD, FXLBC, FXUBC, WSLP
         implicit none
         integer, intent(in) :: IJUMP
         integer, parameter :: KSTEP = 1 ! Step size for circulation-jump boundary update
@@ -217,12 +180,8 @@ contains
     ! appropriate way to include the boundary conditions at JBOT and JTOP.
     ! Called by - SYOR.
     subroutine BCEND(IVAL)    
-        use common_data, only: P, X, Y, IUP, IDOWN, &
-                            JMIN, JMAX, JTOP, JBOT, &
-                            AK, &
-                            XDIFF, &
-                            BCTYPE, UNIT_OUTPUT
-        use solver_base, only: CYYD, CYYU
+        use common_data, only: X, Y, IUP, IDOWN, JMIN, JMAX, JTOP, JBOT, AK, XDIFF, BCTYPE, UNIT_OUTPUT, POR
+        use solver_data, only: P, CYYD, CYYU, CIRCFF, FHINV, DIAG, RHS
         implicit none
         integer, intent(in) :: IVAL
         
@@ -347,10 +306,14 @@ contains
 
     ! Compute far-field boundary conditions for outer boundaries
     subroutine FARFLD()
-        use common_data, only: AK, X, Y, IMIN, IMAX, JMIN, JMAX
-        use common_data, only: BCTYPE, PI, TWOPI, HALFPI
-        use common_data, only: UNIT_OUTPUT
-        use solver_base, only: ANGLE, XSING
+        use common_data, only: AK, X, Y, IMIN, IMAX, JMIN, JMAX, BCTYPE, PI, TWOPI, HALFPI, UNIT_OUTPUT
+        use common_data, only: F, H, POR
+        use solver_data, only: XSING, FHINV
+        use solver_data, only: B_COEF, OMEGA0, OMEGA1, OMEGA2, JET, PSI0, PSI1, PSI2
+        use solver_data, only: DTOP, DBOT, VTOP, VBOT, DUP, DDOWN, VUP, VDOWN
+        use solver_data, only: RTKPOR
+        use solver_data, only: ALPHA0, ALPHA1, ALPHA2, BETA0, BETA1, BETA2
+        use solver_base, only: ANGLE
         implicit none
         integer :: I, J
         real :: YT, YB, XU_BC, XD_BC, YT2, YB2, XU2, XD2, COEF1, COEF2
@@ -550,7 +513,7 @@ contains
     ! Computes local similarity parameter or local Mach number
     ! Called by - VWEDGE, PRINT_SHOCK, OUTPUT_FIELD
     function EMACH1(U, DELTA) result(result_emach)
-        use common_data, only: AK, GAM1, PHYS, EMACH, UNIT_OUTPUT
+        use common_data, only: AK, GAM1, PHYS, EMACH, UNIT_OUTPUT, SIMDEF
         implicit none
         real, intent(in) :: U         ! Local velocity
         real, intent(in) :: DELTA     ! Maximum thickness of airfoil
@@ -589,10 +552,8 @@ contains
     ! Computes Murman or Yoshihara viscous wedge and modifies slope conditions
     ! to account for jump in displacement thickness due to shock/boundary layer interaction
     subroutine VWEDGE(AM1, XSHK, THAMAX, ZETA, NVWPRT, NISHK)
-        use common_data, only: X, ILE, ITE
-        use common_data, only: JUP, JLOW
-        use common_data, only: GAM1, XDIFF
-        use airfoil_module, only: DELTA
+        use common_data, only: X, ILE, ITE, JUP, JLOW, GAM1, XDIFF, DELTA, NWDGE, REYNLD, WCONST
+        use solver_data, only: WSLP, SONVEL
         use solver_base, only: PX, FINDSK
         implicit none
 
@@ -757,8 +718,9 @@ contains
     ! Compute constants ALPHA0, ALPHA1, ALPHA2, OMEGA0, OMEGA1, OMEGA2
     ! Used in formula for doublet in slotted wind tunnel with subsonic freestream
     subroutine DROOTS
-        use common_data, only: HALFPI, PI, TWOPI
-        use math_module, only: report_convergence_error
+        use common_data, only: HALFPI, PI, TWOPI, report_convergence_error, F
+        use solver_data, only: RTKPOR
+        use solver_data, only: ALPHA0, ALPHA1, ALPHA2, OMEGA0, OMEGA1, OMEGA2
         implicit none
         real :: ERROR_LOCAL, TEMP, Q, DALPHA
         integer :: I
@@ -831,8 +793,9 @@ contains
     ! Compute constants BETA0, BETA1, BETA2, PSI0, PSI1, PSI2
     ! Used in formula for vortex in slotted wind tunnel with subsonic freestream
     subroutine VROOTS
-        use common_data, only: PI
-        use math_module, only: report_convergence_error
+        use common_data, only: PI, report_convergence_error, F
+        use solver_data, only: PSI0, PSI1, PSI2, RTKPOR
+        use solver_data, only: BETA0, BETA1, BETA2
         implicit none
         real :: ERROR_LOCAL, TEMP, Q, DBETA
         integer :: I

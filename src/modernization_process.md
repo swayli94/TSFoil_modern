@@ -26,17 +26,13 @@ tsfoil_modern/
 ### Compilation Dependencies
 
 ```text
-common_data.f90, spline_module.f90
+common_data.f90, solver_data.f90, spline_module.f90, math_module.f90
    ↓
-math_module.f90
+airfoil_module.f90, mesh_module.f90
    ↓
-airfoil_module.f90, mesh_module.f90, solver_base.f90
+solver_base.f90, solver_functions.f90
    ↓
-solver_functions.f90
-   ↓
-main_iteration.f90
-   ↓
-io_module.f90
+main_iteration.f90, io_module.f90
    ↓
 main.f90
 ```
@@ -53,8 +49,13 @@ main.f90
    |---------------------|-------------|--------|
    | `INPERR` | Error message output | ✅ |
    | `initialize_common` | Initialize common data arrays and parameters | ✅ |
+   | `report_convergence_error` | Report convergence errors | ✅ |
 
-2. **`spline_module.f90`** - Cubic spline interpolation
+2. **`solver_data.f90`** - Data structure for solver
+
+   - All shared variables with explicit types
+
+3. **`spline_module.f90`** - Cubic spline interpolation
 
    | Original Subroutine | Description | Status |
    |---------------------|-------------|--------|
@@ -64,22 +65,21 @@ main.f90
    | `cleanup_spline` | Deallocate spline arrays | ✅ |
    | `set_boundary_conditions` | Set boundary conditions for spline | ✅ |
 
-3. **`math_module.f90`** - Mathematical utilities
+4. **`math_module.f90`** - Mathematical utilities
 
    | Original Subroutine |  Description | Status |
    |---------------------|--------------|--------|
    | `SIMP(R,X,Y,N,IER)` | Simpson's rule integration | ✅ |
    | `TRAP` | Integrate Y DX by trapezoidal rule | ✅ |
-   | `report_convergence_error` | Report convergence errors | ✅ |
 
-4. **`airfoil_module.f90`** - Geometry handling
+5. **`airfoil_module.f90`** - Geometry handling
 
    | Original Subroutine | Description | Status |
    |---------------------|-------------|--------|
    | `BODY` | Airfoil geometry processing | ✅ |
    | `PRBODY` | Geometry summary | ✅ |
 
-5. **`mesh_module.f90`** - Mesh operations
+6. **`mesh_module.f90`** - Mesh operations
 
    | Original Subroutine | Description | Status |
    |---------------------|-------------|--------|
@@ -87,7 +87,7 @@ main.f90
    | `ISLIT(X)` | Leading/trailing edge location | ✅ |
    | `JSLIT(Y)` | Upper/lower surface location | ✅ |
 
-6. **`solver_base.f90`** - Numerical setup
+7. **`solver_base.f90`** - Numerical setup
 
    | Original Subroutine | Description | Status |
    |---------------------|-------------|--------|
@@ -103,7 +103,7 @@ main.f90
    | `CDCOLE` | Drag coefficient assembly | ✅ |
    | `PRTSK` | Shock wave output | ✅ |
 
-7. **`solver_functions.f90`** - Numerical setup
+8. **`solver_functions.f90`** - Numerical setup
 
    | Original Subroutine | Description | Status |
    |---------------------|-------------|--------|
@@ -116,7 +116,7 @@ main.f90
    | `DROOTS` | Compute constants for wind tunnel | ✅ |
    | `VROOTS` | Slotted-wall angle roots | ✅ |
 
-8. **`main_iteration.f90`** - Core algorithms
+9. **`main_iteration.f90`** - Core algorithms
 
    | Original Subroutine | Description | Status |
    |---------------------|-------------|--------|
@@ -126,7 +126,7 @@ main.f90
    | `REDUB`  | Doublet strength updates | ✅ |
    | `RESET`  | Far-field boundary updates | ✅ |
 
-9. **`io_module.f90`** - Input/output operations
+10. **`io_module.f90`** - Input/output operations
 
    | Original Subroutine | Description | Status |
    |---------------------|-------------|--------|
@@ -135,7 +135,7 @@ main.f90
    | `PRINT` | Main output driver | ✅ |
    | `PRTWAL` | Wind tunnel wall condition output | ✅ |
 
-10. **`no_used_subroutines.f90`** - Subroutines that are not used
+11. **`no_used_subroutines.f90`** - Subroutines that are not used
 
    | Original Subroutine | Description | Status |
    |---------------------|-------------|--------|

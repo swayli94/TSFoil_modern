@@ -2,30 +2,10 @@
 ! Module for SOR solver and iteration control routines
 
 module main_iteration
-    use common_data, only: N_MESH_POINTS
     implicit none
     private
 
     public :: SOLVE
-    public :: IPRTER, MAXIT, WE, CVERGE, DVERGE, DUB
-    public :: WCIRC
-
-    real :: WCIRC = 1.0         ! Weight for circulation jump at trailing edge (0.0-1.0)
-    integer :: IPRTER = 100     ! Print interval for convergence history
-    integer :: MAXIT = 1000     ! Maximum number of iterations
-
-    real :: WE(3) = [1.8, 1.9, 1.95]  ! SOR relaxation factors
-    real :: CVERGE = 0.00001    ! Error criterion for convergence
-    real :: DVERGE = 10.0       ! Error criterion for divergence
-
-    real :: POLD(N_MESH_POINTS,2)   ! old potential values  
-    real :: EMU(N_MESH_POINTS,2)    ! circulation factors
-    real :: WI = 1.05               ! SOR relaxation factor
-    real :: CIRCTE = 0.0            ! Circulation at trailing edge (save the value for iterations)
-
-    real :: DUB = 0.0           ! doublet strength
-
-    integer, parameter :: KSTEP = 1 ! Step size for circulation-jump boundary update
 
 contains
 
@@ -33,15 +13,12 @@ contains
     ! SYOR COMPUTES NEW P AT ALL MESH POINTS.
     ! CALLED BY - SOLVE.
     subroutine SYOR(I1, I2, OUTERR, BIGRL, IRL, JRL, IERROR, JERROR, ERROR)
-        use common_data, only: P, X, IUP, IDOWN, ILE, ITE
-        use common_data, only: JMIN, JMAX, JUP, JLOW, JTOP, JBOT
-        use common_data, only: AK
-        use common_data, only: PJUMP, FCR, EPS
-        use common_data, only: N_MESH_POINTS
-        use solver_functions, only: DIAG, RHS, FXUBC, FXLBC
+        use common_data, only: X, IUP, IDOWN, ILE, ITE, JMIN, JMAX, JUP, JLOW, JTOP, JBOT
+        use common_data, only: AK, FCR, EPS, N_MESH_POINTS
         use solver_functions, only: BCEND
-        use solver_base, only: CXL, CXC, CXR, CXXL, CXXC, CXXR, C1, CYYC, CYYD, CYYU
-        use solver_base, only: CYYBUC, CYYBUU, CYYBLC, CYYBLD
+        use solver_data, only: P, PJUMP, DIAG, RHS, FXUBC, FXLBC, EMU, POLD, WI
+        use solver_data, only: CXL, CXC, CXR, CXXL, CXXC, CXXR, C1, CYYC, CYYD, CYYU
+        use solver_data, only: CYYBUC, CYYBUU, CYYBLC, CYYBLD
         implicit none
         integer, intent(inout) :: I1, I2  ! Indices for potential values
         logical, intent(inout) :: OUTERR  ! outer iteration error (logical)
@@ -211,16 +188,13 @@ contains
 
     ! Main iteration loop: solver, convergence, and flow updates
     subroutine SOLVE()
-        use common_data, only: ABORT1
-        use common_data, only: EPS, IMIN, JMIN, JMAX, IUP, IDOWN
-        use common_data, only: JTOP, JBOT
-        use common_data, only: P, Y, AK
-        use common_data, only: BCTYPE
-        use common_data, only: CLFACT, CMFACT, UNIT_OUTPUT
-        use solver_base, only: LIFT, PITCH, THETA
-        use solver_functions, only: VWEDGE, NWDGE
-        use solver_functions, only: SETBC
-        use solver_base, only: C1
+        use common_data, only: Y, AK, BCTYPE, NWDGE, UNIT_OUTPUT, IPRTER, MAXIT
+        use common_data, only: EPS, IMIN, JMIN, JMAX, IUP, IDOWN, JTOP, JBOT
+        use common_data, only: WE, CVERGE, DVERGE
+        use solver_data, only: P, C1, CLFACT, CMFACT, WI, ABORT1, KSTEP
+        use solver_data, only: POLD, EMU, THETA
+        use solver_base, only: LIFT, PITCH
+        use solver_functions, only: VWEDGE, SETBC
         implicit none
         
         integer :: ITER, MAXITM, KK, J, I, IK, JK, JINC, N, I1, I2
@@ -415,9 +389,10 @@ contains
     ! 2.) Circulation for farfield boundary = CIRCFF
     ! 3.) Jump in P along slit Y=0, X > 1 by linear interpolation between CIRCTE and CIRCFF
     subroutine RECIRC(DCIRC)
-        use common_data, only: P, X, IMAX, ITE, JUP, JLOW, CJUP, CJUP1, CJLOW, CJLOW1
-        use common_data, only: PJUMP, CLSET, CLFACT, KUTTA
-        use solver_functions, only: CIRCFF
+        use common_data, only: X, IMAX, ITE, JUP, JLOW
+        use common_data, only: CLSET, KUTTA, WCIRC
+        use solver_data, only: P, PJUMP, CLFACT, CIRCFF
+        use solver_data, only: CIRCTE, CJUP, CJUP1, CJLOW, CJLOW1
         implicit none
         real, intent(out) :: DCIRC  ! circulation change
         
@@ -455,11 +430,10 @@ contains
     ! For lifting free air flows, doublet strength is set equal to model volume.
     ! For other flows, the nonlinear contribution is added.
     subroutine REDUB()
-        use common_data, only: P, Y, IMIN, IMAX, JMIN, JMAX, N_MESH_POINTS
-        use common_data, only: GAM1, XDIFF, BCTYPE
+        use common_data, only: Y, IMIN, IMAX, JMIN, JMAX, N_MESH_POINTS
+        use common_data, only: GAM1, XDIFF, BCTYPE, VOL
         use math_module, only: TRAP
-        use solver_functions, only: CIRCFF
-        use airfoil_module, only: VOL
+        use solver_data, only: P, CIRCFF, DUB
         implicit none
         
         ! Local variables
@@ -512,8 +486,9 @@ contains
     ! Updates far field boundary conditions for subsonic freestream flows.
     ! CALLED BY - SOLVE.
     subroutine RESET()
-        use common_data, only: P, IMIN, IMAX, JMIN, JMAX, JUP, BCTYPE
-        use solver_functions, only: CIRCFF, DUP, DDOWN, DTOP, DBOT, VUP, VDOWN, VTOP, VBOT
+        use common_data, only: IMIN, IMAX, JMIN, JMAX, JUP, BCTYPE
+        use solver_data, only: P, CIRCFF, DUB, KSTEP
+        use solver_data, only: DUP, DDOWN, DTOP, DBOT, VUP, VDOWN, VTOP, VBOT
         implicit none
         integer :: J, I, K
 
