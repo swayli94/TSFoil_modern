@@ -2004,4 +2004,31 @@ contains
     
   end subroutine EXTRAP
 
+  ! Rational approximation for the error function erf(X)
+  ! Error < 1.5E-7 by rational approximation 7.1.26 from 
+  ! Handbook of Math. Functions, U.S. Dept. of Commerce, NBS Appl Math Ser 55
+  function ARF(X_in) result(Y_out)
+    implicit none
+    real, intent(in) :: X_in
+    real :: Y_out
+    real :: T, POLY, Y_ABS
+    real, parameter :: C(5) = [1.061405429, -1.453152027, 1.421413741, &
+                              -0.284496736, 0.254829592]
+    integer :: I_loop
+
+    Y_ABS = abs(X_in)
+    if (Y_ABS >= 10.0) then
+      Y_out = 1.0
+    else
+      T = 1.0 / (1.0 + 0.3275911 * Y_ABS)
+      POLY = 0.0
+      do I_loop = 1, 5
+        POLY = (POLY + C(I_loop)) * T
+      end do
+      Y_out = 1.0 - POLY * exp(-Y_ABS * Y_ABS)
+    end if
+    
+    if (X_in < 0.0) Y_out = -Y_out
+  end function ARF  
+
 end module no_use_subroutines

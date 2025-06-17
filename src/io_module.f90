@@ -115,7 +115,7 @@ contains
   ! Matches original PRINT subroutine functionality exactly
   subroutine PRINT()
     use common_data
-    use math_module, only: PITCH, LIFT, CDCOLE
+    use solver_base, only: PITCH, LIFT, CDCOLE
     use airfoil_module, only: DELTA
     use main_iteration, only: DUB
     use solver_functions, only: SIMDEF, SONVEL, VFACT, YFACT
@@ -208,9 +208,9 @@ contains
   ! Prints pressure coefficient and Mach number on Y=0 line, and plots CP along side of print
   subroutine PRINT_SHOCK()
     use common_data
-    use math_module, only: PX, EMACH1, LIFT, PITCH
+    use solver_base, only: PX, LIFT, PITCH
     use airfoil_module, only: DELTA
-    use solver_functions, only: SIMDEF
+    use solver_functions, only: EMACH1
     implicit none
     
     ! Local variables exactly matching original - renamed to avoid conflicts
@@ -233,14 +233,14 @@ contains
       if (I_P1 > ITE) UL_P1 = CJ01*PX(I_P1,JUP) + CJ02*PX(I_P1,JLOW)
       if (I_P1 < ILE) UL_P1 = CJ01*PX(I_P1,JUP) + CJ02*PX(I_P1,JLOW)
       CPL(I_P1) = -2.0 * UL_P1 * CPFACT
-      EM1L(I_P1) = EMACH1(UL_P1, DELTA, SIMDEF)
+      EM1L(I_P1) = EMACH1(UL_P1, DELTA)
       if (EM1L(I_P1) > 1.3) IEM = 1
       
       UU_P1 = CJUP*PX(I_P1,JUP) - CJUP1*PX(I_P1,JUP+1)
       if (I_P1 > ITE) UU_P1 = UL_P1
       if (I_P1 < ILE) UU_P1 = UL_P1
       CPU(I_P1) = -2.0 * UU_P1 * CPFACT
-      EM1U(I_P1) = EMACH1(UU_P1, DELTA, SIMDEF)
+      EM1U(I_P1) = EMACH1(UU_P1, DELTA)
       if (EM1U(I_P1) > 1.3) IEM = 1
     end do
 
@@ -386,9 +386,10 @@ contains
     use common_data, only: UNIT_FIELD, X, Y, JMIN, JMAX, IMIN, IMAX, CPFACT
     use common_data, only: EMACH, ALPHA, N_MESH_POINTS
     use common_data, only: P, IUP, IDOWN
-    use math_module, only: PX, EMACH1
+    use solver_base, only: PX
     use airfoil_module, only: DELTA
-    use solver_functions, only: SIMDEF, VFACT, C1, CXL, CXC, CXR
+    use solver_functions, only: EMACH1, VFACT
+    use solver_base, only: C1, CXL, CXC, CXR
     implicit none
     integer :: I, J
     real :: U, EM, CP_VAL, FLOW_TYPE_NUM
@@ -416,7 +417,7 @@ contains
 
         ! Calculate flow variables
         U = PX(I, J)                  ! Computes U = DP/DX at point I,J
-        EM = EMACH1(U, DELTA, SIMDEF) ! Computes Mach number from U
+        EM = EMACH1(U, DELTA)         ! Computes Mach number from U
         CP_VAL = -2.0 * U * CPFACT    ! CPFACT is a scaling factor for pressure coefficient
         
         ! Calculate flow type for points within the computational domain
@@ -465,7 +466,7 @@ contains
                           IUP, IDOWN, JBOT, JTOP, JTOP, JBOT, &
                           BCTYPE, CPSTAR, &
                           XDIFF, UNIT_OUTPUT
-    use math_module, only: PX, PY
+    use solver_base, only: PX, PY
     use solver_functions, only: POR, CIRCFF, FHINV, VFACT, YFACT, F, H
     implicit none
     

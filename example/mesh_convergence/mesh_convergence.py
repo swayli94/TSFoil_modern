@@ -15,6 +15,8 @@ from tsfoil import TSFoil
 
 if __name__ == "__main__":
     
+    NWDGE = 0
+    
     mesh_series = {
         'coarse': {'n_point_x':  50, 'n_point_y':  20, 'n_point_airfoil':  25},
         'medium': {'n_point_x': 100, 'n_point_y':  40, 'n_point_airfoil':  50},
@@ -30,10 +32,10 @@ if __name__ == "__main__":
     }
     
     config_series = {
-        '1': {'ALPHA': 1.0, 'EMACH': 0.50, 'MAXIT': 9999},
-        '2': {'ALPHA': 1.5, 'EMACH': 0.65, 'MAXIT': 9999},
-        '3': {'ALPHA': 0.5, 'EMACH': 0.75, 'MAXIT': 9999},
-        '4': {'ALPHA': 1.0, 'EMACH': 0.75, 'MAXIT': 9999},
+        '1': {'ALPHA': 1.0, 'EMACH': 0.50, 'MAXIT': 9999, 'NWDGE': NWDGE},
+        '2': {'ALPHA': 1.5, 'EMACH': 0.60, 'MAXIT': 9999, 'NWDGE': NWDGE},
+        '3': {'ALPHA': 0.5, 'EMACH': 0.75, 'MAXIT': 9999, 'NWDGE': NWDGE},
+        '4': {'ALPHA': 1.0, 'EMACH': 0.75, 'MAXIT': 9999, 'NWDGE': NWDGE},
     }
     
     # Create output directory if it doesn't exist

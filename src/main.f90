@@ -8,6 +8,7 @@ program tsfoil_main
   use spline_module
   use airfoil_module
   use mesh_module
+  use solver_base
   use solver_functions
   use main_iteration
   implicit none

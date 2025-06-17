@@ -68,19 +68,8 @@ main.f90
 
    | Original Subroutine |  Description | Status |
    |---------------------|--------------|--------|
-   | `ARF(X)` | Error function approximation | ✅ |
    | `SIMP(R,X,Y,N,IER)` | Simpson's rule integration | ✅ |
-   | `PX(I,J)` | ∂P/∂x finite difference | ✅ |
-   | `PY(I,J)` | ∂P/∂y finite difference | ✅ |
-   | `EMACH1(U)` | Local Mach number computation | ✅ |
-   | `DRAG(CDFACT)` | Pressure drag integration | ✅ |
-   | `LIFT(CLFACT)` | Lift coefficient computation | ✅ |
-   | `PITCH(CMFACT)` | Pitching moment calculation | ✅ |
    | `TRAP` | Integrate Y DX by trapezoidal rule | ✅ |
-   | `FINDSK` | Find shock location | ✅ |
-   | `NEWISK` | Shock index adjustment | ✅ |
-   | `CDCOLE` | Drag coefficient assembly | ✅ |
-   | `PRTSK` | Shock wave output | ✅ |
    | `report_convergence_error` | Report convergence errors | ✅ |
 
 4. **`airfoil_module.f90`** - Geometry handling
@@ -98,22 +87,36 @@ main.f90
    | `ISLIT(X)` | Leading/trailing edge location | ✅ |
    | `JSLIT(Y)` | Upper/lower surface location | ✅ |
 
-6. **`solver_functions.f90`** - Numerical setup
+6. **`solver_base.f90`** - Numerical setup
 
    | Original Subroutine | Description | Status |
    |---------------------|-------------|--------|
    | `DIFCOE` | Finite difference coefficients | ✅ |
+   | `PX(I,J)` | ∂P/∂x finite difference | ✅ |
+   | `PY(I,J)` | ∂P/∂y finite difference | ✅ |
+   | `ANGLE`  | Angle potential calculation | ✅ |
+   | `DRAG(CDFACT)` | Pressure drag integration | ✅ |
+   | `LIFT(CLFACT)` | Lift coefficient computation | ✅ |
+   | `PITCH(CMFACT)` | Pitching moment calculation | ✅ |
+   | `FINDSK` | Find shock location | ✅ |
+   | `NEWISK` | Shock index adjustment | ✅ |
+   | `CDCOLE` | Drag coefficient assembly | ✅ |
+   | `PRTSK` | Shock wave output | ✅ |
+
+7. **`solver_functions.f90`** - Numerical setup
+
+   | Original Subroutine | Description | Status |
+   |---------------------|-------------|--------|
    | `SETBC`  | Solution limits and BC setup | ✅ |
    | `BCEND`  | Boundary condition application | ✅ |
    | `FARFLD` | Far-field boundary setup | ✅ |
-   | `ANGLE`  | Angle potential calculation | ✅ |
-   | `EXTRAP` | Far-field extrapolation | UNUSED |
+   | `EMACH1(U)` | Local Mach number computation | ✅ |
    | `VWEDGE` | Viscous wedge corrections | ✅ |
    | `WANGLE` | Wedge angle for viscous correction | ✅ |
    | `DROOTS` | Compute constants for wind tunnel | ✅ |
    | `VROOTS` | Slotted-wall angle roots | ✅ |
 
-7. **`main_iteration.f90`** - Core algorithms
+8. **`main_iteration.f90`** - Core algorithms
 
    | Original Subroutine | Description | Status |
    |---------------------|-------------|--------|
@@ -123,7 +126,7 @@ main.f90
    | `REDUB`  | Doublet strength updates | ✅ |
    | `RESET`  | Far-field boundary updates | ✅ |
 
-8. **`io_module.f90`** - Input/output operations
+9. **`io_module.f90`** - Input/output operations
 
    | Original Subroutine | Description | Status |
    |---------------------|-------------|--------|
@@ -132,10 +135,11 @@ main.f90
    | `PRINT` | Main output driver | ✅ |
    | `PRTWAL` | Wind tunnel wall condition output | ✅ |
 
-9. **`no_used_subroutines.f90`** - Subroutines that are not used
+10. **`no_used_subroutines.f90`** - Subroutines that are not used
 
    | Original Subroutine | Description | Status |
    |---------------------|-------------|--------|
+   | `ARF(X)` | Error function approximation | UNUSED |
    | `AYMESH` | Analytical mesh generation | UNUSED |
    | `CUTOUT` | Mesh coarsening | UNUSED |
    | `REFINE` | Mesh refinement | UNUSED |
@@ -152,6 +156,7 @@ main.f90
    | `PLTSON` | Sonic line printer | UNUSED |
    | `GUESSP` | Solution initialization | UNUSED |
    | `MACHMP` | Print map of Mach number | Replaced by `OUTPUT_FIELD` |
+   | `EXTRAP` | Far-field extrapolation | UNUSED |
 
 ## Key Modernization Improvements
 
