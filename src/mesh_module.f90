@@ -84,7 +84,6 @@ contains
   subroutine CKMESH(H)
     use common_data, only: XIN, YIN, IMIN, IMAX, ITE
     use common_data, only: JMIN, JMAX, JLOW, JUP
-    use common_data, only: UNIT_OUTPUT, N_MESH_POINTS
     use common_data, only: BCTYPE
     implicit none
     real, intent(in) :: H

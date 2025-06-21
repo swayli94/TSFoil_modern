@@ -1,0 +1,371 @@
+!    -*- f90 -*-
+! Note: the context of this file is case sensitive.
+
+python module tsfoil_fortran ! in 
+    interface  ! in :tsfoil_fortran
+        module common_data ! in :tsfoil_fortran:common_data.f90
+            integer, parameter,optional :: n_mesh_points=1000
+            integer, parameter,optional,depend(n_mesh_points) :: nmp_plus2=1002
+            integer, parameter,optional,depend(n_mesh_points) :: nmp_plus1=1001
+            integer, parameter,optional :: imin=1
+            integer, parameter,optional :: jmin=1
+            real, parameter,optional :: gam=1.4
+            real, parameter,optional,depend(gam) :: gam1=2.4
+            real, parameter,optional :: pi=3.14159265
+            real, parameter,optional :: halfpi=1.570796325
+            real, parameter,optional :: twopi=6.28318531
+            real, optional :: emach=0.75
+            real, optional :: alpha=0.0
+            real, optional :: clset=0.0
+            integer, optional :: bctype=1
+            integer, optional :: nu=0
+            integer, optional :: nl=0
+            real, optional,dimension(1000) :: xl=0.0
+            real, optional,dimension(1000) :: xu=0.0
+            real, optional,dimension(1000) :: yl=0.0
+            real, optional,dimension(1000) :: yu=0.0
+            real, optional :: delta=0.0
+            integer, optional :: imaxi=0
+            integer, optional :: jmaxi=0
+            real, optional,dimension(nmp_plus2) :: xin=0.0
+            real, optional,dimension(nmp_plus2) :: yin=0.0
+            logical, optional :: phys=.true.
+            logical, optional :: kutta=.true.
+            logical, optional :: fcr=.true.
+            integer, optional :: nwdge=0
+            integer, optional :: simdef=3
+            real, optional :: ak=0.0
+            real, optional :: rigf=0.0
+            real, optional :: por=0.0
+            real, optional :: reynld=4000000.0
+            real, optional :: wconst=4.0
+            real, optional :: wcirc=1.0
+            integer, optional :: iprter=100
+            integer, optional :: maxit=1000
+            real, optional :: eps=0.2
+            real, optional,dimension(3) :: we=(/1.8,  1.9,  1.95/)
+            real, optional :: cverge=1e-05
+            real, optional :: dverge=10.0
+            real, optional :: f=0.0
+            real, optional :: h=0.0
+            integer, optional :: iflap=0
+            real, optional :: delflp=0.0
+            real, optional :: flploc=0.77
+            integer :: imax
+            integer :: jmax
+            integer :: iup
+            integer :: idown
+            integer :: ile
+            integer :: ite
+            integer :: jup
+            integer :: jlow
+            integer :: jtop
+            integer :: jbot
+            real, optional,dimension(nmp_plus2) :: x=0.0
+            real, optional,dimension(nmp_plus2) :: y=0.0
+            real, optional,dimension(1000) :: xdiff=0.0
+            real, optional,dimension(1000) :: ydiff=0.0
+            real, optional :: vol=0.0
+            integer, optional :: nfoil=0
+            real, optional,dimension(1000) :: camber=0.0
+            real, optional,dimension(1000) :: thick=0.0
+            real, optional,dimension(1000) :: xfoil=0.0
+            real, optional,dimension(1000) :: fu=0.0
+            real, optional,dimension(1000) :: fl=0.0
+            real, optional,dimension(1000) :: fxu=0.0
+            real, optional,dimension(1000) :: fxl=0.0
+            integer, parameter,optional :: unit_input=2
+            integer, parameter,optional :: unit_output=15
+            integer, parameter,optional :: unit_summary=16
+            integer, parameter,optional :: unit_cpxs=17
+            integer, parameter,optional :: unit_mesh=20
+            integer, parameter,optional :: unit_field=11
+            subroutine initialize_common ! in :tsfoil_fortran:common_data.f90:common_data
+            end subroutine initialize_common
+            subroutine inperr(i_error_code) ! in :tsfoil_fortran:common_data.f90:common_data
+                integer intent(in) :: i_error_code
+            end subroutine inperr
+            subroutine report_convergence_error(subroutine_name,variable_name,iteration_number) ! in :tsfoil_fortran:common_data.f90:common_data
+                character*(*) intent(in) :: subroutine_name
+                character*(*) intent(in) :: variable_name
+                integer intent(in) :: iteration_number
+            end subroutine report_convergence_error
+        end module common_data
+        module solver_data ! in :tsfoil_fortran:solver_data.f90
+            use common_data, only: n_mesh_points,nmp_plus2,nmp_plus1
+            real dimension(1002,1001) :: p
+            real dimension(1000,1000) :: theta
+            real, parameter,optional :: xsing=0.5
+            integer, parameter,optional :: kstep=1
+            real, optional :: circff=0.0
+            real, optional :: fhinv=0.0
+            real, optional :: sonvel=0.0
+            real, optional :: dub=0.0
+            real, optional :: vfact=1.0
+            real, optional :: yfact=1.0
+            real dimension(1000) :: cyyc
+            real dimension(1000) :: cyyd
+            real dimension(1000) :: cyyu
+            real :: cyyblc
+            real :: cyybld
+            real :: cyyblu
+            real :: cyybuc
+            real :: cyybud
+            real :: cyybuu
+            real dimension(1000) :: cxc
+            real dimension(1000) :: cxl
+            real dimension(1000) :: cxr
+            real dimension(1000) :: cxxc
+            real dimension(1000) :: cxxl
+            real dimension(1000) :: cxxr
+            real dimension(1000) :: c1
+            real dimension(1000) :: diag
+            real dimension(1000) :: rhs
+            real dimension(1000) :: dtop
+            real dimension(1000) :: dbot
+            real dimension(1000) :: dup
+            real dimension(1000) :: ddown
+            real dimension(1000) :: vtop
+            real dimension(1000) :: vbot
+            real dimension(1000) :: vup
+            real dimension(1000) :: vdown
+            real, optional,dimension(1000) :: fxlbc=0.0
+            real, optional,dimension(1000) :: fxubc=0.0
+            real, optional,dimension(1000) :: pjump=0.0
+            real, optional,dimension(1000,2) :: pold=0.0
+            real, optional,dimension(1000,2) :: emu=0.0
+            real, optional :: wi=1.05
+            real, optional :: circte=0.0
+            real, optional :: cjup=0.0
+            real, optional :: cjup1=0.0
+            real, optional :: cjlow=0.0
+            real, optional :: cjlow1=0.0
+            real, optional :: cdfact=0.0
+            real, optional :: clfact=0.0
+            real, optional :: cmfact=0.0
+            real, optional :: cpfact=0.0
+            real, optional :: cpstar=0.0
+            logical, optional :: abort1=.false.
+            real :: alpha0
+            real :: alpha1
+            real :: alpha2
+            real :: omega0
+            real :: omega1
+            real :: omega2
+            real :: jet
+            real :: b_coef
+            real :: beta0
+            real :: beta1
+            real :: beta2
+            real :: psi0
+            real :: psi1
+            real :: psi2
+            real dimension(1000,2) :: wslp
+            real, optional :: rtkpor=0.0
+        end module solver_data
+        module spline_module ! in :tsfoil_fortran:spline_module.f90
+            real, private,allocatable,dimension(:) :: a
+            real, private,allocatable,dimension(:) :: b
+            real, private :: dy1
+            real, private :: dy2
+            integer, private :: k1
+            integer, private :: k2
+            subroutine initialize_spline(max_points) ! in :tsfoil_fortran:spline_module.f90:spline_module
+                integer intent(in) :: max_points
+            end subroutine initialize_spline
+            subroutine cleanup_spline ! in :tsfoil_fortran:spline_module.f90:spline_module
+            end subroutine cleanup_spline
+            subroutine set_boundary_conditions(k1_in,k2_in,dy1_in,dy2_in) ! in :tsfoil_fortran:spline_module.f90:spline_module
+                integer intent(in) :: k1_in
+                integer intent(in) :: k2_in
+                real intent(in) :: dy1_in
+                real intent(in) :: dy2_in
+            end subroutine set_boundary_conditions
+            subroutine spln1(x,y,n) ! in :tsfoil_fortran:spline_module.f90:spline_module
+                real dimension(n),intent(in) :: x
+                real dimension(n),intent(in),depend(n) :: y
+                integer, optional,intent(in),check(shape(x, 0) == n),depend(x) :: n=shape(x, 0)
+            end subroutine spln1
+            subroutine spln1x(x,y,n,xp,yp,dyp) ! in :tsfoil_fortran:spline_module.f90:spline_module
+                real dimension(n),intent(in) :: x
+                real dimension(n),intent(in),depend(n) :: y
+                integer, optional,intent(in),check(shape(x, 0) == n),depend(x) :: n=shape(x, 0)
+                real intent(in) :: xp
+                real intent(out) :: yp
+                real intent(out) :: dyp
+            end subroutine spln1x
+        end module spline_module
+        module math_module ! in :tsfoil_fortran:math_module.f90
+            subroutine simp(r,x_arr,y_arr,n,ier) ! in :tsfoil_fortran:math_module.f90:math_module
+                real intent(out) :: r
+                real dimension(n),intent(in) :: x_arr
+                real dimension(n),intent(in),depend(n) :: y_arr
+                integer, optional,intent(in),check(shape(x_arr, 0) == n),depend(x_arr) :: n=shape(x_arr, 0)
+                integer intent(out) :: ier
+            end subroutine simp
+            subroutine trap(x_arr,y_arr,n,sum) ! in :tsfoil_fortran:math_module.f90:math_module
+                real dimension(n),intent(in) :: x_arr
+                real dimension(n),intent(in),depend(n) :: y_arr
+                integer, optional,intent(in),check(shape(x_arr, 0) == n),depend(x_arr) :: n=shape(x_arr, 0)
+                real intent(out) :: sum
+            end subroutine trap
+        end module math_module
+        module airfoil_module ! in :tsfoil_fortran:airfoil_module.f90
+            use common_data, only: n_mesh_points
+            subroutine body ! in :tsfoil_fortran:airfoil_module.f90:airfoil_module
+                use common_data, only: nfoil,fu,fl,fxu,fxl,camber,thick,xfoil
+                use math_module, only: simp
+                use spline_module, only: spln1,spln1x,set_boundary_conditions
+            end subroutine body
+            subroutine prbody ! in :tsfoil_fortran:airfoil_module.f90:airfoil_module
+                use common_data, only: xfoil,fu,fxu,fl,fxl
+            end subroutine prbody
+        end module airfoil_module
+        module mesh_module ! in :tsfoil_fortran:mesh_module.f90
+            use common_data, only: n_mesh_points
+            real, private,dimension(1000) :: yfree
+            real, private,dimension(1000) :: ytun
+            integer, private :: jmxf
+            integer, private :: jmxt
+            subroutine setup_mesh(h) ! in :tsfoil_fortran:mesh_module.f90:mesh_module
+                use common_data, only: bctype,inperr
+                real intent(in) :: h
+            end subroutine setup_mesh
+            subroutine ckmesh(h) ! in :tsfoil_fortran:mesh_module.f90:mesh_module
+                use common_data, only: bctype
+                real intent(in) :: h
+            end subroutine ckmesh
+            subroutine islit(x_mesh) ! in :tsfoil_fortran:mesh_module.f90:mesh_module
+                use common_data, only: imin,imax,ile,ite
+                real dimension(:),intent(in) :: x_mesh
+            end subroutine islit
+            subroutine jslit(y_mesh) ! in :tsfoil_fortran:mesh_module.f90:mesh_module
+                use common_data, only: jmin,jlow,jup
+                real dimension(:),intent(in) :: y_mesh
+            end subroutine jslit
+        end module mesh_module
+        module solver_base ! in :tsfoil_fortran:solver_base.f90
+            function px(i,j) result (result_px) ! in :tsfoil_fortran:solver_base.f90:solver_base
+                use common_data, only: imin,imax,xdiff
+                use solver_data, only: p
+                integer intent(in) :: i
+                integer intent(in) :: j
+                real :: result_px
+            end function px
+            function py(i,j) result (result_py) ! in :tsfoil_fortran:solver_base.f90:solver_base
+                use common_data, only: ydiff,alpha,fxu,fxl
+                use solver_data, only: p,pjump
+                integer intent(in) :: i
+                integer intent(in) :: j
+                real :: result_py
+            end function py
+            subroutine difcoe ! in :tsfoil_fortran:solver_base.f90:solver_base
+                use common_data, only: jlow,jup
+                use solver_data, only: c1
+            end subroutine difcoe
+            subroutine angle ! in :tsfoil_fortran:solver_base.f90:solver_base
+                use common_data, only: pi,twopi,ak
+                use solver_data, only: theta,xsing
+            end subroutine angle
+            function lift(clfact_in) result (result_lift) ! in :tsfoil_fortran:solver_base.f90:solver_base
+                use common_data, only: jup,ite,jlow
+                use solver_data, only: cjup,cjup1,cjlow,cjlow1,p
+                real intent(in) :: clfact_in
+                real :: result_lift
+            end function lift
+            function pitch(cmfact_in) result (result_pitch) ! in :tsfoil_fortran:solver_base.f90:solver_base
+                use common_data, only: x,ile,ite,jup,jlow,n_mesh_points
+                use solver_data, only: cjup,cjup1,cjlow,cjlow1,p
+                use math_module, only: trap
+                real intent(in) :: cmfact_in
+                real :: result_pitch
+            end function pitch
+            subroutine cdcole(sonvel,yfact,delta) ! in :tsfoil_fortran:solver_base.f90:solver_base
+                use common_data, only: unit_output,unit_summary
+                use solver_data, only: cdfact
+                use math_module, only: trap
+                real intent(in) :: sonvel
+                real intent(in) :: yfact
+                real intent(in) :: delta
+            end subroutine cdcole
+            subroutine findsk(istart,iend,j,sonvel,isk) ! in :tsfoil_fortran:solver_base.f90:solver_base
+                integer intent(in) :: istart
+                integer intent(in) :: iend
+                integer intent(in) :: j
+                real intent(in) :: sonvel
+                integer intent(out) :: isk
+            end subroutine findsk
+        end module solver_base
+        module solver_functions ! in :tsfoil_fortran:solver_functions.f90
+            subroutine scale ! in :tsfoil_fortran:solver_functions.f90:solver_functions
+                use common_data, only: inperr,unit_output
+                use solver_data, only: cpstar,cpfact,clfact,cdfact,cmfact,yfact,vfact,sonvel
+            end subroutine scale
+            subroutine setbc(ijump) ! in :tsfoil_fortran:solver_functions.f90:solver_functions
+                use common_data, only: ak,alpha,bctype
+                use solver_data, only: cyyblu,cyybud,fxlbc,fxubc,wslp
+                integer intent(in) :: ijump
+            end subroutine setbc
+            subroutine bcend(ival) ! in :tsfoil_fortran:solver_functions.f90:solver_functions
+                use common_data, only: x,y,iup,idown,jmin,jmax,jtop,jbot,ak,xdiff,bctype,unit_output,por
+                use solver_data, only: p,cyyd,cyyu,circff,fhinv,diag,rhs
+                integer intent(in) :: ival
+            end subroutine bcend
+            subroutine farfld ! in :tsfoil_fortran:solver_functions.f90:solver_functions
+                use common_data, only: f,h,por
+                use solver_data, only: alpha0,alpha1,alpha2,beta0,beta1,beta2
+                use solver_base, only: angle
+            end subroutine farfld
+            function emach1(u,delta) result (result_emach) ! in :tsfoil_fortran:solver_functions.f90:solver_functions
+                use common_data, only: ak,gam1,phys,emach,unit_output,simdef
+                real intent(in) :: u
+                real intent(in) :: delta
+                real :: result_emach
+            end function emach1
+            subroutine vwedge(am1,xshk,thamax,zeta,nvwprt,nishk) ! in :tsfoil_fortran:solver_functions.f90:solver_functions
+                use common_data, only: x,ile,ite,jup,jlow,gam1,xdiff,delta,nwdge,reynld,wconst
+                use solver_data, only: wslp,sonvel
+                use solver_base, only: px,findsk
+                real dimension(2,3),intent(out) :: am1
+                real dimension(2,3),intent(out) :: xshk
+                real dimension(2,3),intent(out) :: thamax
+                real dimension(2,3),intent(out) :: zeta
+                integer dimension(2),intent(out) :: nvwprt
+                integer intent(out) :: nishk
+            end subroutine vwedge
+        end module solver_functions
+        module main_iteration ! in :tsfoil_fortran:main_iteration.f90
+            subroutine solve ! in :tsfoil_fortran:main_iteration.f90:main_iteration
+                use common_data, only: we,cverge,dverge
+                use solver_data, only: pold,emu,theta
+                use solver_base, only: lift,pitch
+                use solver_functions, only: vwedge,setbc
+            end subroutine solve
+        end module main_iteration
+        module io_module ! in :tsfoil_fortran:io_module.f90
+            use common_data
+            real, private,dimension(1000) :: cpu
+            real, private,dimension(1000) :: cpl
+            subroutine open_output_files ! in :tsfoil_fortran:io_module.f90:io_module
+                use common_data, only: unit_output,unit_summary
+            end subroutine open_output_files
+            subroutine close_output_files ! in :tsfoil_fortran:io_module.f90:io_module
+                use common_data, only: unit_output,unit_summary
+            end subroutine close_output_files
+            subroutine readin ! in :tsfoil_fortran:io_module.f90:io_module
+                use mesh_module, only: setup_mesh
+            end subroutine readin
+            subroutine print ! in :tsfoil_fortran:io_module.f90:io_module
+                use solver_data, only: cpfact,cdfact,cmfact,clfact,yfact,vfact
+                use solver_base, only: pitch,lift,cdcole
+            end subroutine print
+            subroutine output_mesh(optional_file_name) ! in :tsfoil_fortran:io_module.f90:io_module
+                character*(*), optional :: optional_file_name
+            end subroutine output_mesh
+        end module io_module
+    end interface 
+end python module tsfoil_fortran
+
+! This file was auto-generated with f2py (version:1.26.4).
+! See:
+! https://web.archive.org/web/20140822061353/http://cens.ioc.ee/projects/f2py2e

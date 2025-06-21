@@ -62,7 +62,8 @@ module common_data
     integer :: MAXIT = 1000     ! Maximum number of iterations
 
     real :: EPS = 0.2           ! Convergence tolerance 
-    real :: WE(3) = [1.8, 1.9, 1.95]  ! SOR relaxation factors
+    real :: WE(3)               ! SOR relaxation factors
+    data WE /1.8, 1.9, 1.95/
     real :: CVERGE = 0.00001    ! Error criterion for convergence
     real :: DVERGE = 10.0       ! Error criterion for divergence
 

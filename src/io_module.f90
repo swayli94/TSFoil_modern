@@ -464,10 +464,7 @@ contains
     real :: COL, CPLARG, UNPCOL
     character(len=1) :: LINE1(60)
     character(len=4) :: BCT(15)
-    
-    ! Data statements
-    character(len=1), parameter :: BLANK = ' ', DOT = '.', STAR = '*', DASH = '-'
-    
+        
     ! Print single variables
     I2_LOCAL = 3 * BCTYPE
     I1_LOCAL = I2_LOCAL - 2
