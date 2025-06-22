@@ -13,7 +13,7 @@ from pathlib import Path
 
 
 MODULE_NAME = "tsfoil_fortran"
-FLAG_GENERATE_SIGNATURE = False # Generate *.pyf (The generated file is not 100% correct)
+FLAG_GENERATE_SIGNATURE = True # Generate *.pyf (The generated file is not 100% correct)
 
 
 def run_command(cmd, cwd=None):
@@ -90,6 +90,8 @@ def generate_signature_file(files):
         f.write(content)
     
     print("Signature file generated successfully.")
+    
+    return Path(MODULE_NAME + ".pyf")
 
 def compile_module(files) -> Path:
     '''
@@ -119,8 +121,12 @@ def compile_module(files) -> Path:
 
 if __name__ == "__main__":
     
-    # Change to source directory
-    os.chdir(Path("src"))
+    # Get the directory where this script is located
+    script_dir = Path(__file__).parent
+    
+    # Change to source directory (relative to script location)
+    src_dir = script_dir.parent / "src"
+    os.chdir(src_dir)
     clean_up_files()
     
     # Define Fortran source files in dependency order
@@ -140,21 +146,29 @@ if __name__ == "__main__":
     check_files_exist(fortran_files)
     
     # Create signature file using f2py
+    pyf_file = None
     if FLAG_GENERATE_SIGNATURE:
-        generate_signature_file(fortran_files)
+        pyf_file = generate_signature_file(fortran_files)
     
     # Compile the module using f2py
     so_file = compile_module(fortran_files)
     
-    # Move the .so file to parent directory for easier access
-    parent_so = Path("..") / so_file.name
-    shutil.move(str(so_file), str(parent_so))
-    print(f"Moved {so_file.name} to parent directory")
+    # Move the .so file to pyTSFoil directory for easier access
+    pytsfoil_dir = script_dir
+    target_so = pytsfoil_dir / so_file.name
+    shutil.move(str(so_file), str(target_so))
+    print(f"Moved {so_file.name} to pyTSFoil directory")
+    
+    # Move the .pyf file to pyTSFoil directory if it was generated
+    if pyf_file and pyf_file.exists():
+        target_pyf = pytsfoil_dir / pyf_file.name
+        shutil.move(str(pyf_file), str(target_pyf))
+        print(f"Moved {pyf_file.name} to pyTSFoil directory")
     
     print("\n" + "="*60)
     print("F2PY COMPILATION COMPLETED SUCCESSFULLY!")
     print("="*60)
-    print(f"Python module: {parent_so.name}")
+    print(f"Python module: {target_so.name}")
     print("\nTo test the module, run:")
     print("  python3 -c 'import tsfoil_fortran; print(dir(tsfoil_fortran))'")
     print("\nTo use in Python:")

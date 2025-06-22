@@ -21,8 +21,7 @@ except ImportError as e:
     print(f"Import error: {e}")
     print()
     print("Make sure you have compiled the Fortran modules with f2py:")
-    print("  cd src")
-    print("  python3 compile_f2py.py")
+    print("  python3 pyTSFoil/compile_f2py.py")
     sys.exit(1)
 
 def print_header():
@@ -151,6 +150,13 @@ def main():
     # Print program header
     print_header()
     
+    # Change to parent directory where input/output files are located
+    script_dir = Path(__file__).parent
+    parent_dir = script_dir.parent
+    os.chdir(parent_dir)
+    print(f"Working directory: {os.getcwd()}")
+    print()
+    
     try:
         # Main program flow (matching main.f90 exactly)
         
@@ -209,8 +215,8 @@ def show_help():
     print("  original Fortran main program using f2py-generated interfaces.")
     print()
     print("Requirements:")
-    print("  - Compiled Fortran modules (run compile_f2py.py or compile_f2py.sh)")
-    print("  - Valid input file (tsfoil.inp)")
+    print("  - Compiled Fortran modules (run pyTSFoil/compile_f2py.py)")
+    print("  - Valid input file (tsfoil.inp in parent directory)")
     print()
     print("Output files:")
     print("  - tsfoil2.out: Detailed analysis results")
@@ -251,8 +257,7 @@ def check_fortran_module():
         print(f"✗ Error importing tsfoil_fortran: {e}")
         print()
         print("To fix this, compile the Fortran modules:")
-        print("  cd temp")
-        print("  python3 compile_f2py.py")
+        print("  python3 pyTSFoil/compile_f2py.py")
         return False
 
 if __name__ == "__main__":
