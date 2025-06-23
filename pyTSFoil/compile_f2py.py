@@ -137,10 +137,10 @@ if __name__ == "__main__":
     fortran_files = [
         "common_data.f90",
         "solver_data.f90", 
-        "spline_module.f90",
+        # "spline_module.f90",
         "math_module.f90",
-        "airfoil_module.f90",
-        "mesh_module.f90",
+        # "airfoil_module.f90",
+        # "mesh_module.f90",
         "solver_base.f90",
         "solver_functions.f90",
         "main_iteration.f90",

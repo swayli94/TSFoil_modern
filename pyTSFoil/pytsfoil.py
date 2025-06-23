@@ -171,9 +171,6 @@ class PyTSFoil(object):
         '''
         # Initialize common data
         tsf.common_data.initialize_common()
-        
-        # Initialize spline module (required for airfoil geometry calculations)
-        tsf.spline_module.initialize_spline(2000)
 
         # Check parameters
         if self.config['EMACH'] < 0.5 or self.config['EMACH'] > 2.0:

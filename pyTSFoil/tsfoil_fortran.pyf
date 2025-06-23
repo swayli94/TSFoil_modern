@@ -163,38 +163,6 @@ python module tsfoil_fortran ! in
             real dimension(1000,2) :: wslp
             real, optional :: rtkpor=0.0
         end module solver_data
-        module spline_module ! in :tsfoil_fortran:spline_module.f90
-            real, private,allocatable,dimension(:) :: a
-            real, private,allocatable,dimension(:) :: b
-            real, private :: dy1
-            real, private :: dy2
-            integer, private :: k1
-            integer, private :: k2
-            subroutine initialize_spline(max_points) ! in :tsfoil_fortran:spline_module.f90:spline_module
-                integer intent(in) :: max_points
-            end subroutine initialize_spline
-            subroutine cleanup_spline ! in :tsfoil_fortran:spline_module.f90:spline_module
-            end subroutine cleanup_spline
-            subroutine set_boundary_conditions(k1_in,k2_in,dy1_in,dy2_in) ! in :tsfoil_fortran:spline_module.f90:spline_module
-                integer intent(in) :: k1_in
-                integer intent(in) :: k2_in
-                real intent(in) :: dy1_in
-                real intent(in) :: dy2_in
-            end subroutine set_boundary_conditions
-            subroutine spln1(x,y,n) ! in :tsfoil_fortran:spline_module.f90:spline_module
-                real dimension(n),intent(in) :: x
-                real dimension(n),intent(in),depend(n) :: y
-                integer, optional,intent(in),check(shape(x, 0) == n),depend(x) :: n=shape(x, 0)
-            end subroutine spln1
-            subroutine spln1x(x,y,n,xp,yp,dyp) ! in :tsfoil_fortran:spline_module.f90:spline_module
-                real dimension(n),intent(in) :: x
-                real dimension(n),intent(in),depend(n) :: y
-                integer, optional,intent(in),check(shape(x, 0) == n),depend(x) :: n=shape(x, 0)
-                real intent(in) :: xp
-                real intent(out) :: yp
-                real intent(out) :: dyp
-            end subroutine spln1x
-        end module spline_module
         module math_module ! in :tsfoil_fortran:math_module.f90
             subroutine simp(r,x_arr,y_arr,n,ier) ! in :tsfoil_fortran:math_module.f90:math_module
                 real intent(out) :: r
@@ -210,40 +178,6 @@ python module tsfoil_fortran ! in
                 real intent(out) :: sum
             end subroutine trap
         end module math_module
-        module airfoil_module ! in :tsfoil_fortran:airfoil_module.f90
-            use common_data, only: n_mesh_points
-            subroutine body ! in :tsfoil_fortran:airfoil_module.f90:airfoil_module
-                use common_data, only: nfoil,fu,fl,fxu,fxl,camber,thick,xfoil
-                use math_module, only: simp
-                use spline_module, only: spln1,spln1x,set_boundary_conditions
-            end subroutine body
-            subroutine prbody ! in :tsfoil_fortran:airfoil_module.f90:airfoil_module
-                use common_data, only: xfoil,fu,fxu,fl,fxl
-            end subroutine prbody
-        end module airfoil_module
-        module mesh_module ! in :tsfoil_fortran:mesh_module.f90
-            use common_data, only: n_mesh_points
-            real, private,dimension(1000) :: yfree
-            real, private,dimension(1000) :: ytun
-            integer, private :: jmxf
-            integer, private :: jmxt
-            subroutine setup_mesh(h) ! in :tsfoil_fortran:mesh_module.f90:mesh_module
-                use common_data, only: bctype,inperr
-                real intent(in) :: h
-            end subroutine setup_mesh
-            subroutine ckmesh(h) ! in :tsfoil_fortran:mesh_module.f90:mesh_module
-                use common_data, only: bctype
-                real intent(in) :: h
-            end subroutine ckmesh
-            subroutine islit(x_mesh) ! in :tsfoil_fortran:mesh_module.f90:mesh_module
-                use common_data, only: imin,imax,ile,ite
-                real dimension(:),intent(in) :: x_mesh
-            end subroutine islit
-            subroutine jslit(y_mesh) ! in :tsfoil_fortran:mesh_module.f90:mesh_module
-                use common_data, only: jmin,jlow,jup
-                real dimension(:),intent(in) :: y_mesh
-            end subroutine jslit
-        end module mesh_module
         module solver_base ! in :tsfoil_fortran:solver_base.f90
             function px(i,j) result (result_px) ! in :tsfoil_fortran:solver_base.f90:solver_base
                 use common_data, only: imin,imax,xdiff
