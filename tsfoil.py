@@ -23,8 +23,6 @@ import shutil
 import numpy as np
 from scipy.optimize import fsolve
 import matplotlib.pyplot as plt
-from matplotlib.colors import LinearSegmentedColormap
-import matplotlib.patches as patches
 
 
 class TSFoil(object):
@@ -149,7 +147,7 @@ class TSFoil(object):
         # Combine segments, removing duplicate boundary points
         xx = np.concatenate([
             x_left[:-1],    # Exclude right boundary (x=0)
-            x_center[1:],   # Exclude x=0 (for simulation stability)
+            x_center,
             x_right[1:]     # Exclude left boundary (x=1)
         ])
         

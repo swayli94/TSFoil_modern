@@ -42,7 +42,11 @@ def clean_up_files():
     '''
     print("Cleaning up previous build files...")
     
-    cleanup_patterns = ["*.mod", "*.o", "*.so", "*.pyf"]
+    cleanup_patterns = ["*.mod", "*.o", "*.so"]
+    
+    if FLAG_GENERATE_SIGNATURE:
+        cleanup_patterns.append("*.pyf")
+    
     for pattern in cleanup_patterns:
         files_to_remove = glob.glob(pattern)
         for file_path in files_to_remove:

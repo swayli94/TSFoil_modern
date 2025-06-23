@@ -353,12 +353,13 @@ python module tsfoil_fortran ! in
                 use common_data, only: unit_output,unit_summary
             end subroutine close_output_files
             subroutine readin ! in :tsfoil_fortran:io_module.f90:io_module
-                use mesh_module, only: setup_mesh
             end subroutine readin
             subroutine print ! in :tsfoil_fortran:io_module.f90:io_module
                 use solver_data, only: cpfact,cdfact,cmfact,clfact,yfact,vfact
                 use solver_base, only: pitch,lift,cdcole
             end subroutine print
+            subroutine output_parameters ! in :tsfoil_fortran:io_module.f90:io_module
+            end subroutine output_parameters
             subroutine output_mesh(optional_file_name) ! in :tsfoil_fortran:io_module.f90:io_module
                 character*(*), optional :: optional_file_name
             end subroutine output_mesh

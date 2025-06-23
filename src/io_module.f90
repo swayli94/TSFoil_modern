@@ -21,7 +21,7 @@ module io_module
   real :: CPU(N_MESH_POINTS), CPL(N_MESH_POINTS)
 
   ! Declare public procedures
-  public :: READIN, PRINT, OUTPUT_MESH
+  public :: READIN, PRINT, OUTPUT_MESH, OUTPUT_PARAMETERS
   public :: open_output_files, close_output_files
 
 contains
@@ -50,7 +50,6 @@ contains
   ! Reads title card, namelist input, and manages restart data for current case  
   ! The original READIN is designed to be called once per case from main program
   subroutine READIN()
-    use mesh_module, only: setup_mesh
     implicit none    
     character(len=100) :: IN_FILENAME, TITLE
     integer :: ios
@@ -95,13 +94,6 @@ contains
 
     ! Set AK=0 for physical coordinates
     if (PHYS) AK = 0.0
-
-    ! Setup and output mesh
-    call setup_mesh(H)
-    ! call OUTPUT_MESH()
-
-    ! Output parameters to output file
-    call OUTPUT_PARAMETERS()
 
   end subroutine READIN
 

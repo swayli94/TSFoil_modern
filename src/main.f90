@@ -28,7 +28,13 @@ program tsfoil_main
   ! Call READIN to read one case - it handles termination internally with STOP
   write(*,'(A)') 'Reading input data...'
   call READIN()
-    
+  
+  ! Setup and output mesh
+  call setup_mesh(H)
+
+  ! Output parameters to output file
+  call OUTPUT_PARAMETERS()
+
   ! SCALE: Rescale all physical variables to transonic similarity form
   write(*,'(A)') 'Scaling variables to similarity form...'
   call SCALE()
