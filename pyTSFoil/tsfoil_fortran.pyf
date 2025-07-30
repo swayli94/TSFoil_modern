@@ -74,6 +74,7 @@ python module tsfoil_fortran ! in
             real, optional,dimension(1000) :: fl=0.0
             real, optional,dimension(1000) :: fxu=0.0
             real, optional,dimension(1000) :: fxl=0.0
+            integer, optional :: flag_output_solve=1
             integer, parameter,optional :: unit_input=2
             integer, parameter,optional :: unit_output=15
             integer, parameter,optional :: unit_summary=16
@@ -232,7 +233,7 @@ python module tsfoil_fortran ! in
         end module solver_base
         module solver_functions ! in :tsfoil_fortran:solver_functions.f90
             subroutine scale ! in :tsfoil_fortran:solver_functions.f90:solver_functions
-                use common_data, only: inperr,unit_output
+                use common_data, only: inperr,unit_output,flag_output_solve
                 use solver_data, only: cpstar,cpfact,clfact,cdfact,cmfact,yfact,vfact,sonvel
             end subroutine scale
             subroutine setbc(ijump) ! in :tsfoil_fortran:solver_functions.f90:solver_functions
@@ -270,7 +271,7 @@ python module tsfoil_fortran ! in
         end module solver_functions
         module main_iteration ! in :tsfoil_fortran:main_iteration.f90
             subroutine solve ! in :tsfoil_fortran:main_iteration.f90:main_iteration
-                use common_data, only: we,cverge,dverge
+                use common_data, only: we,cverge,dverge,flag_output_solve
                 use solver_data, only: pold,emu,theta
                 use solver_base, only: lift,pitch
                 use solver_functions, only: vwedge,setbc
@@ -280,9 +281,12 @@ python module tsfoil_fortran ! in
             use common_data
             real, private,dimension(1000) :: cpu
             real, private,dimension(1000) :: cpl
-            subroutine open_output_files ! in :tsfoil_fortran:io_module.f90:io_module
+            subroutine open_output_file ! in :tsfoil_fortran:io_module.f90:io_module
+                use common_data, only: unit_output
+            end subroutine open_output_file
+            subroutine open_summary_file ! in :tsfoil_fortran:io_module.f90:io_module
                 use common_data, only: unit_output,unit_summary
-            end subroutine open_output_files
+            end subroutine open_summary_file
             subroutine close_output_files ! in :tsfoil_fortran:io_module.f90:io_module
                 use common_data, only: unit_output,unit_summary
             end subroutine close_output_files

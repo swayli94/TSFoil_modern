@@ -25,7 +25,7 @@ contains
         use common_data, only: PHYS, EMACH, SIMDEF
         use common_data, only: AK, ALPHA, GAM1
         use common_data, only: YIN, JMIN, JMAX, DELTA, H, POR
-        use common_data, only: INPERR, UNIT_OUTPUT
+        use common_data, only: INPERR, UNIT_OUTPUT, FLAG_OUTPUT_SOLVE
         use solver_data, only: CPSTAR, CPFACT, CLFACT, CDFACT, CMFACT, YFACT, VFACT, SONVEL
         implicit none
         real :: EMACH2, BETA, DELRT1, DELRT2
@@ -99,7 +99,9 @@ contains
             ! Scale tunnel parameters (wall height)
             H = H / YFACT
             POR = POR * YFACT
-            write(UNIT_OUTPUT,'(//10X,11HSCALED POR=,F10.5)') POR
+            if (FLAG_OUTPUT_SOLVE == 1) then
+                write(UNIT_OUTPUT,'(//10X,11HSCALED POR=,F10.5)') POR
+            end if
 
             ! Scale angle of attack
             ALPHA = ALPHA / VFACT

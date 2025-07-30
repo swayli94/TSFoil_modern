@@ -40,6 +40,7 @@ from pathlib import Path
 import numpy as np
 from scipy.interpolate import CubicSpline
 from scipy import integrate
+import matplotlib.pyplot as plt
 
 try:
     import tsfoil_fortran as tsf
@@ -55,19 +56,40 @@ except ImportError as e:
 class PyTSFoil(object):
     '''
     Python interface for TSFOIL Fortran module.
+    
+    Parameters
+    ----------
+    airfoil_coordinates: ndarray [n_points, 2] | None
+        The coordinates of the airfoil.
+        The data starts from the airfoil's trailing edge in the upper surface,
+        and then goes counter-clockwise around the airfoil.
+        
+    airfoil_file: str | None
+        The file containing the airfoil geometry.
+        The data starts from the airfoil's trailing edge in the upper surface,
+        and then goes counter-clockwise around the airfoil.
+        
+    work_dir: str | None
+        The working directory.
+        If None, the working directory is the parent directory of the script.
+        
+    output_dir: str | None
+        The output directory.
+        If None, the output directory is the working directory.
+    
     '''
     def __init__(self,
-            airfoil_file: str,
-            work_dir:str|None = None):
+            airfoil_coordinates: np.ndarray|None = None,
+            airfoil_file: str|None = None,
+            work_dir:str|None = None,
+            output_dir:str|None = None):
         '''
         Initialize the TSFoil object.
         '''
         self.config = {}
-        self.airfoil = {'file': airfoil_file}
+        self.airfoil = {'file': airfoil_file, 'coordinates': airfoil_coordinates}
         self.mesh = {}
         self.data_summary = {}
-        self.data_cpxs = {}
-        self.data_field = {}
 
         # Change to parent directory where input/output files are located
         if work_dir is None:
@@ -76,9 +98,13 @@ class PyTSFoil(object):
             os.chdir(parent_dir)
         else:
             os.chdir(work_dir)
-            
-        print(f"pyTSFoil working directory: {os.getcwd()}")
-        print()
+                        
+        self.work_dir = os.getcwd()
+        
+        if output_dir is None:
+            self.output_dir = self.work_dir
+        else:
+            self.output_dir = output_dir
         
         self._default_config()
     
@@ -121,8 +147,9 @@ class PyTSFoil(object):
         # Solve transonic flow equations
         tsf.main_iteration.solve()
         
-        # Print final results
-        tsf.io_module.print()
+        self.compute_data_summary()
+        
+        self.print_summary()
     
     def _default_config(self):
         '''
@@ -158,12 +185,25 @@ class PyTSFoil(object):
             'n_point_x': 81,        # Number of points in the x-direction (IMAXI)
             'n_point_y': 60,        # Number of points in the y-direction (JMAXI)
             'n_point_airfoil': 51,  # Number of points on the airfoil
+            
+            'flag_output_solve': True,     # write solver process to tsfoil2.out
+            'flag_output_summary': True,   # smry.out
+            'flag_output_shock': True,     # cpxs.dat
+            'flag_output_field': True,     # field.dat
+            
+            'flag_print_info': True,
         }
         
         # Default parameters
         self.skiprows : int = 1
         self.x_scale : float = 5.0
         self.y_scale : float = 4.0
+
+        # Print working directory and output directory
+        if self.config['flag_print_info']:
+            print(f"pyTSFoil working directory: {self.work_dir}")
+            print(f"pyTSFoil output directory: {self.output_dir}")
+            print()
 
     def initialize_data(self) -> None:
         '''
@@ -190,7 +230,7 @@ class PyTSFoil(object):
         self.nmp_plus2 = tsf.common_data.nmp_plus2
         
         # Open output files
-        tsf.io_module.open_output_files()
+        tsf.io_module.open_output_file()
     
         # Apply self.config to common data
         for key, value in self.config.items():
@@ -210,7 +250,14 @@ class PyTSFoil(object):
         skiprows : int
             The number of rows to skip in the airfoil file.
         '''
-        x, y = np.loadtxt(self.airfoil['file'], skiprows=self.skiprows).T
+        if self.airfoil['file'] is not None:
+            x, y = np.loadtxt(self.airfoil['file'], skiprows=self.skiprows).T
+        elif self.airfoil['coordinates'] is not None:
+            x = self.airfoil['coordinates'][:, 0]
+            y = self.airfoil['coordinates'][:, 1]
+        else:
+            raise ValueError("Either airfoil_file or airfoil_coordinates must be provided")
+        
         le_pos = x.argmin()
 
         xu = x[:le_pos+1][::-1]
@@ -510,13 +557,897 @@ class PyTSFoil(object):
         tsf.common_data.thick[:nfoil] = thick.astype(np.float32)
         
         # Print or log geometry (equivalent to PRBODY call)
-        print(f"Airfoil geometry computed successfully:")
-        print(f"  Number of points: {nfoil}")
-        print(f"  Volume: {vol:.6f}")
-        print(f"  Max thickness: {delta:.6f}")
-        if iflap != 0:
-            print(f"  Flap deflection: {delflp:.2f} degrees at x={flploc:.3f}")
+        if self.config['flag_print_info']:
+            print(f"Airfoil geometry computed successfully:")
+            print(f"  Number of points: {nfoil}")
+            print(f"  Volume: {vol:.6f}")
+            print(f"  Max thickness: {delta:.6f}")
+            if iflap != 0:
+                print(f"  Flap deflection: {delflp:.2f} degrees at x={flploc:.3f}")
     
+    def compute_data_summary(self):
+        '''
+        Compute the data summary.
+        '''
+        alpha = tsf.common_data.alpha
+        vfact = tsf.solver_data.vfact
+        clfact = tsf.solver_data.clfact
+        cmfact = tsf.solver_data.cmfact
+        
+        # Compute lift and pitch coefficients
+        self.data_summary['alpha'] = alpha * vfact
+        self.data_summary['cl'] = tsf.solver_base.lift(clfact)
+        self.data_summary['cm'] = tsf.solver_base.pitch(cmfact)
+        self.data_summary['cpstar'] = tsf.solver_data.cpstar
+            
+    def output_field(self) -> None:
+        '''
+        Output the field to a file in Tecplot format.
+        Translates OUTPUT_FIELD from io_module.f90
+        '''
+        # Get mesh dimensions and coordinates
+        imin = tsf.common_data.imin
+        imax = tsf.common_data.imax
+        jmin = tsf.common_data.jmin
+        jmax = tsf.common_data.jmax
+        iup = tsf.common_data.iup
+        idown = tsf.common_data.idown
+        
+        x_coords = tsf.common_data.x
+        y_coords = tsf.common_data.y
+        
+        # Get solver data
+        P = tsf.solver_data.p  # Pressure array
+        vfact = tsf.solver_data.vfact
+        c1 = tsf.solver_data.c1
+        cxl = tsf.solver_data.cxl
+        cxc = tsf.solver_data.cxc
+        cxr = tsf.solver_data.cxr
+        cpfact = tsf.solver_data.cpfact
+        
+        # Get configuration parameters
+        emach = tsf.common_data.emach
+        alpha = tsf.common_data.alpha
+        delta = tsf.common_data.delta
+                        
+        # Open output file
+        if self.config['flag_output_field']:
+            
+            field_data = np.zeros((jmax - jmin + 1, imax - imin + 1, 6))
+            
+            with open(os.path.join(self.output_dir, "field.dat"), 'w') as f:
+                # Write Tecplot header
+                f.write('# Flow types: -1=Outside domain, 0=Elliptic, 1=Parabolic, 2=Hyperbolic, 3=Shock\n')
+                f.write(f'# Mach = {emach:10.6f}\n')
+                f.write(f'# Alpha = {alpha * vfact:10.6f}\n')
+                f.write(f'# CPFACT = {cpfact:10.6f}\n')
+                
+                f.write('VARIABLES = "X", "Y", "Mach", "Cp", "P", "FlowType"\n')
+                f.write(f'ZONE I= {imax - imin + 1:5d} J= {jmax - jmin + 1:5d} F= POINT\n')
+                
+            # Initialize VT array for flow type calculation  
+            # Size it to accommodate all possible j indices
+            vt = np.zeros((jmax + 1, 2))  # VT(J,1) and VT(J,2)
+            for j in range(jmin, jmax + 1):
+                vt[j, 0] = c1[1]  # VT(J,1) = C1(2) in Fortran (1-based) -> C1[1] in Python (0-based)
+            
+            # Write field data in point format
+            for j in range(jmin, jmax + 1):
+                for i in range(imin, imax + 1):
+                    # Calculate flow variables
+                    u = tsf.solver_base.px(i, j)  # Computes U = DP/DX at point I,J
+                    em = tsf.solver_functions.emach1(u, delta)  # Computes Mach number from U
+                    cp_val = -2.0 * u * cpfact  # CPFACT is a scaling factor for pressure coefficient
+                    
+                    # Calculate flow type for points within the computational domain
+                    if imin <= i <= imax and jmin <= j <= jmax:
+                        # Flow type classification using PRTMC logic
+                        vt[j, 1] = vt[j, 0]  # VT(J,2) = VT(J,1)
+                        # Convert to 0-based indexing for accessing arrays
+                        i_py = i - 1
+                        j_py = j - 1
+                        
+                        if i >= iup and i <= idown:
+                            # VT(J,1) = C1(I) - (CXL(I)*P(J,I-1) + CXC(I)*P(J,I) + CXR(I)*P(J,I+1))
+                            vt[j, 0] = (c1[i_py] - (cxl[i_py] * P[j_py, i_py - 1] + 
+                                                cxc[i_py] * P[j_py, i_py] + 
+                                                cxr[i_py] * P[j_py, i_py + 1]))
+                            
+                            if vt[j, 0] > 0.0:
+                                if vt[j, 1] < 0.0:
+                                    # Shock point
+                                    flow_type_num = 3.0
+                                else:
+                                    # Elliptic point (subsonic)
+                                    flow_type_num = 0.0
+                            else:
+                                if vt[j, 1] < 0.0:
+                                    # Hyperbolic point (supersonic)
+                                    flow_type_num = 2.0
+                                else:
+                                    # Parabolic point (sonic)
+                                    flow_type_num = 1.0
+                        else:
+                            # Outside computational domain
+                            flow_type_num = -1.0
+                    else:
+                        # Outside computational domain
+                        flow_type_num = -1.0
+                    
+                    # Convert to 0-based indexing for accessing coordinates
+                    i_py = i - 1
+                    j_py = j - 1
+                    p_val = P[j_py, i_py]
+                    
+                    # Store data in field_data
+                    field_data[j_py, i_py, 0] = x_coords[i_py]
+                    field_data[j_py, i_py, 1] = y_coords[j_py]
+                    field_data[j_py, i_py, 2] = em
+                    field_data[j_py, i_py, 3] = cp_val
+                    field_data[j_py, i_py, 4] = p_val
+                    field_data[j_py, i_py, 5] = flow_type_num
+                    
+                    # Write data to file
+                    with open(os.path.join(self.output_dir, "field.dat"), 'a') as f:
+                        f.write(f' {x_coords[i_py]:15.12f}')
+                        f.write(f' {y_coords[j_py]:15.12f}')
+                        f.write(f' {em:15.12f}')
+                        f.write(f' {cp_val:15.12f}')
+                        f.write(f' {p_val:15.12f}')
+                        f.write(f' {flow_type_num:15.12f}\n')
+                        
+            self.data_summary['field_data'] = field_data
+            
+            if self.config['flag_print_info']:
+                print('Output to field.dat: Cp, Mach, Potential field data')
+    
+    def output_shock(self) -> None:
+        '''
+        Output shock data, translating the Fortran PRINT_SHOCK subroutine.
+        This function computes pressure coefficients and Mach numbers along the airfoil surface.
+        
+        Parameters
+        ----------
+        file_name : str, optional
+            Output filename. Defaults to "cpxs.dat".
+        '''        
+        # Get required parameters from Fortran modules
+        imin = tsf.common_data.imin
+        imax = tsf.common_data.imax
+        ile = tsf.common_data.ile
+        ite = tsf.common_data.ite
+        jlow = tsf.common_data.jlow
+        jup = tsf.common_data.jup
+        
+        # Get required data from solver_data
+        cpfact = tsf.solver_data.cpfact
+
+        cpstar = tsf.solver_data.cpstar
+        cjlow = tsf.solver_data.cjlow
+        cjlow1 = tsf.solver_data.cjlow1
+        cjup = tsf.solver_data.cjup
+        cjup1 = tsf.solver_data.cjup1
+        
+        # Get coordinate arrays
+        x_coords = tsf.common_data.x
+        y_coords = tsf.common_data.y
+        
+        # Get configuration parameters
+        delta = tsf.common_data.delta
+        emach = tsf.common_data.emach
+        phys = tsf.common_data.phys
+        
+        # Initialize variables
+        iem = 0
+        cj01 = -y_coords[jlow-1] / (y_coords[jup-1] - y_coords[jlow-1])  # Convert to 0-based indexing
+        cj02 = y_coords[jup-1] / (y_coords[jup-1] - y_coords[jlow-1])
+        
+        # Arrays to store results
+        n_points = imax - imin + 1
+        em1l = np.zeros(n_points)
+        em1u = np.zeros(n_points)
+        cpu = np.zeros(n_points)
+        cpl = np.zeros(n_points)
+        
+        # Main computation loop
+        for i_p1 in range(imin, imax + 1):  # Fortran 1-based indexing
+            # Convert to 0-based indexing for Python arrays
+            i_py = i_p1 - 1
+            
+            # Calculate UL_P1
+            ul_p1 = cjlow * tsf.solver_base.px(i_p1, jlow) - cjlow1 * tsf.solver_base.px(i_p1, jlow - 1)
+            if i_p1 > ite:
+                ul_p1 = cj01 * tsf.solver_base.px(i_p1, jup) + cj02 * tsf.solver_base.px(i_p1, jlow)
+            if i_p1 < ile:
+                ul_p1 = cj01 * tsf.solver_base.px(i_p1, jup) + cj02 * tsf.solver_base.px(i_p1, jlow)
+            
+            # Store CPL value and compute Mach number
+            cpl[i_py] = -2.0 * ul_p1 * cpfact
+            em1l[i_py] = tsf.solver_functions.emach1(ul_p1, delta)
+            if em1l[i_py] > 1.3:
+                iem = 1
+            
+            # Calculate UU_P1
+            uu_p1 = cjup * tsf.solver_base.px(i_p1, jup) - cjup1 * tsf.solver_base.px(i_p1, jup + 1)
+            if i_p1 > ite:
+                uu_p1 = ul_p1
+            if i_p1 < ile:
+                uu_p1 = ul_p1
+            
+            # Store CPU value and compute Mach number
+            cpu[i_py] = -2.0 * uu_p1 * cpfact
+            em1u[i_py] = tsf.solver_functions.emach1(uu_p1, delta)
+            if em1u[i_py] > 1.3:
+                iem = 1
+        
+        self.data_summary['cpu'] = cpu
+        self.data_summary['cpl'] = cpl
+        self.data_summary['mau'] = em1u
+        self.data_summary['mal'] = em1l
+        
+        # Output summary file
+        if self.config['flag_output_summary']:
+            with open(os.path.join(self.output_dir, "smry.out"), 'a') as f:
+
+                # Check for detached shock
+                if cpl[imin-1] < cpstar and cpl[imin] > cpstar:
+                    f.write('0 ***** CAUTION *****\n')
+                    f.write(' DETACHED SHOCK WAVE UPSTREAM OF X-MESH,SOLUTION TERMINATED.\n')
+                    return
+                
+                # Mach number warning
+                if iem == 1 and phys:
+                    f.write('0 ***** CAUTION *****\n')
+                    f.write(' MAXIMUM MACH NUMBER EXCEEDS 1.3\n')
+                    f.write(' SHOCK JUMPS IN ERROR IF UPSTREAM NORMAL MACH NUMBER GREATER THAN 1.3\n')
+        
+        # Output airfoil surface data to file
+        if self.config['flag_output_shock']:
+            
+            with open(os.path.join(self.output_dir, "cpxs.dat"), 'w') as f:
+                
+                # Write coefficients
+                f.write(f'# Output to cpxs.dat: Cp, Mach distribution on a x-line (Y=0) \n')
+                f.write(f'# Mach = {emach:10.6f}\n')
+                f.write(f'# Alpha = {self.data_summary["alpha"]:10.6f}\n')
+                f.write(f'# CL = {self.data_summary["cl"]:10.6f}\n')
+                f.write(f'# CM = {self.data_summary["cm"]:10.6f}\n')
+                f.write(f'# Cp* = {self.data_summary["cpstar"]:10.6f}\n')
+                
+                # Write variable names
+                f.write('VARIABLES = "X", "Cp-up", "M-up", "Cp-low", "M-low"\n')
+                
+                # Write data with Fortran-style formatting
+                for i_p1 in range(imin, imax + 1):
+                    i_py = i_p1 - 1
+                    f.write(f'  {self.mesh['xx'][i_py]:10.5f}')
+                    f.write(f'  {self.data_summary['cpu'][i_py]:10.5f}')
+                    f.write(f'  {self.data_summary['mau'][i_py]:10.5f}')
+                    f.write(f'  {self.data_summary['cpl'][i_py]:10.5f}')
+                    f.write(f'  {self.data_summary['mal'][i_py]:10.5f}\n')
+        
+            if self.config['flag_print_info']:
+                print('Output to cpxs.dat: Cp, Mach distribution on a x-line (Y=0)')
+    
+    def cdcole_python(self, sonvel: float, yfact: float, delta: float) -> None:
+        """
+        Compute drag coefficient by momentum integral method.
+        Integrates around a contour enclosing the body and along all shocks inside the contour.
+        
+        This is a Python translation of the CDCOLE subroutine from solver_base.f90.
+        
+        Parameters:
+        -----------
+        sonvel : float
+            Speed of sound
+        yfact : float  
+            Scaling factor for Y-coordinate
+        delta : float
+            Maximum thickness of airfoil
+        """
+        # Get required variables from Fortran modules
+        x_coords = tsf.common_data.x
+        y_coords = tsf.common_data.y
+        imin = tsf.common_data.imin
+        imax = tsf.common_data.imax
+        iup = tsf.common_data.iup
+        ile = tsf.common_data.ile
+        ite = tsf.common_data.ite
+        n_mesh_points = tsf.common_data.n_mesh_points
+        jmin = tsf.common_data.jmin
+        jmax = tsf.common_data.jmax
+        jup = tsf.common_data.jup
+        jlow = tsf.common_data.jlow
+        ak = tsf.common_data.ak
+        gam1 = tsf.common_data.gam1
+        fxl = tsf.common_data.fxl
+        fxu = tsf.common_data.fxu
+        
+        # Get solver data
+        cjup = tsf.solver_data.cjup
+        cjup1 = tsf.solver_data.cjup1
+        cjlow = tsf.solver_data.cjlow
+        cjlow1 = tsf.solver_data.cjlow1
+        cdfact = tsf.solver_data.cdfact
+        
+        # Helper functions
+        def trap_integration(xi_arr, arg_arr, n_points):
+            """Trapezoidal integration (Python implementation of TRAP)"""
+            sum_val = 0.0
+            for i in range(n_points - 1):
+                z = xi_arr[i + 1] - xi_arr[i]
+                w = arg_arr[i + 1] + arg_arr[i]
+                sum_val += z * w
+            return 0.5 * sum_val
+                
+        def findsk(istart, iend, j_line, son_vel):
+            """Find shock location on line J between ISTART and IEND"""
+            isk = istart - 1
+            u2 = tsf.solver_base.px(isk, j_line)
+            
+            while True:
+                isk += 1
+                u1 = u2
+                u2 = tsf.solver_base.px(isk, j_line)
+                if u1 > son_vel and u2 <= son_vel:
+                    break
+                if isk >= iend:
+                    isk = -iend
+                    break
+            return isk
+        
+        def newisk(iskold, j_line, son_vel):
+            """Find new location of shockwave given an initial guess"""
+            i2 = iskold + 2
+            isknew = iskold - 3
+            u2 = tsf.solver_base.px(isknew, j_line)
+            
+            while True:
+                isknew += 1
+                u1 = u2
+                u2 = tsf.solver_base.px(isknew, j_line)
+                if u1 > son_vel and u2 <= son_vel:
+                    break
+                if isknew >= i2:
+                    isknew = -isknew
+                    break
+            return isknew
+        
+        def drag_function(cdfact_in):
+            """Compute drag coefficient by surface pressure integral (Python implementation of DRAG)"""
+            xi = np.zeros(n_mesh_points)
+            arg = np.zeros(n_mesh_points)
+            
+            k = 0
+            arg[0] = 0.0
+            xi[0] = x_coords[ile - 2]  # Convert to 0-based indexing
+            
+            for i in range(ile, ite + 1):
+                k += 1
+                pxup = cjup * tsf.solver_base.px(i, jup) - cjup1 * tsf.solver_base.px(i, jup + 1)
+                pxlow = cjlow * tsf.solver_base.px(i, jlow) - cjlow1 * tsf.solver_base.px(i, jlow - 1)
+                arg[k] = fxu[k - 1] * pxup - fxl[k - 1] * pxlow
+                xi[k] = x_coords[i - 1]  # Convert to 0-based indexing
+            
+            k += 1
+            arg[k] = 0.0
+            xi[k] = x_coords[ite]  # Convert to 0-based indexing
+            
+            sum_val = trap_integration(xi, arg, k + 1)
+            return -sum_val * cdfact_in * 2.0
+        
+        def prtsk(xi_arr, arg_arr, l_points, nshock, cdsk, lprt1):
+            """Print shock wave information (Python implementation of PRTSK)"""
+            if not self.config['flag_output_summary']:
+                return
+                
+            cdycof = -cdfact * gam1 / (6.0 * yfact)
+            poycof = delta**2 * gam1 * (gam1 - 1.0) / 12.0
+                
+            with open(os.path.join(self.output_dir, "smry.out"), 'a') as f:
+
+                # Write header for first shock wave only
+                if nshock == 1:
+                    f.write('0\n')
+                    f.write(' INVISCID WAKE PROFILES FOR INDIVIDUAL SHOCK WAVES WITHIN MOMENTUM CONTOUR\n')
+                
+                # Write shock information
+                f.write('\n')  # blank line
+                f.write(f'SHOCK{nshock:3d}\n')
+                f.write(f' WAVE DRAG FOR THIS SHOCK={cdsk:12.6f}\n')
+                f.write(f'      Y         CD(Y)        PO/POINF\n')
+                
+                # Write shock profile data
+                for k in range(l_points):
+                    yy = xi_arr[k] * yfact
+                    cdy = cdycof * arg_arr[k]
+                    poy = 1.0 + poycof * arg_arr[k]
+                    f.write(f' {yy:12.8f}{cdy:12.8f}{poy:12.8f}\n')
+                
+                # Write footer if shock extends outside contour
+                if lprt1 == 1:
+                    f.write('\n')  # blank line
+                    f.write(' SHOCK WAVE EXTENDS OUTSIDE CONTOUR\n')
+                    f.write(' PRINTOUT OF SHOCK LOSSES ARE NOT AVAILABLE FOR REST OF SHOCK\n')
+        
+        # Main computation starts here
+        gam123 = gam1 * 2.0 / 3.0
+        iskold = 0
+        
+        # Set locations of contour boundaries
+        
+        # Upstream boundary
+        if ak > 0.0:
+            iu = (ile + imin) // 2
+        else:
+            iu = iup
+        
+        # Top and bottom boundaries
+        # Subsonic freestream
+        jt = jmax - 1
+        jb = jmin + 1
+        
+        if ak <= 0.0:
+            # Supersonic freestream
+            # Set JB,JT to include only subsonic part of detached bow wave
+            
+            # Find bow shock wave
+            istop = ile - 3
+            ibow = findsk(iup, istop, jup, sonvel)
+            
+            if ibow < 0:
+                
+                # Shock is too close to body to do contour integral
+                ule = tsf.solver_base.px(ile, jup)
+                cd = drag_function(cdfact)
+                
+                if self.config['flag_output_summary']:
+                    with open(os.path.join(self.output_dir, "smry.out"), 'a') as f:
+                        if ule > sonvel:
+                            f.write('1 SHOCK WAVE IS ATTACHED TO BODY\n')
+                            f.write('  MOMENTUM INTEGRAL CANNOT BE DONE\n')
+                            f.write('  DRAG OBTAINED FROM SURFACE PRESSURE INTEGRAL\n')
+                        else:
+                            f.write('1 DETACHED SHOCK WAVE IS TOO CLOSE TO BODY\n')
+                            f.write('  MOMENTUM INTEGRAL CANNOT BE DONE\n')
+                            f.write('  DRAG OBTAINED FROM SURFACE PRESSURE INTEGRAL\n')
+                        f.write(f'0 CD={cd:12.6f}\n')
+                        
+                return
+            
+            # Search up shock to find tip of subsonic region
+            isk = ibow
+            jstart = jup + 1
+            jt = jup - 1
+            for j in range(jstart, jmax + 1):
+                jt += 1
+                iskold = isk
+                isk = newisk(iskold, j, sonvel)
+                if isk < 0:
+                    break
+            
+            # Search down shock to find tip of subsonic region
+            isk = ibow
+            jb = jlow + 2
+            for j in range(jmin, jlow + 1):
+                jj = jlow - j + jmin
+                jb -= 1
+                iskold = isk
+                isk = newisk(iskold, jj, sonvel)
+                if isk < 0:
+                    break
+            
+            # Save I location of bow shock wave on lower boundary
+            ibow = iskold
+        
+        # Downstream boundary
+        id_downstream = (ite + imax) // 2
+        if tsf.solver_base.px(ite + 1, jup) >= sonvel:
+            # Trailing edge is supersonic. Place downstream
+            # boundary ahead of trailing edge to avoid tail shock
+            i = ite
+            while x_coords[i - 1] > 0.75:  # Convert to 0-based indexing
+                i -= 1
+            id_downstream = i
+        
+        # All boundaries are fixed
+        # Compute integrals along boundaries
+        
+        # Integral on upstream boundary
+        cdup = 0.0
+        if ak >= 0.0:
+            xi = np.zeros(n_mesh_points)
+            arg = np.zeros(n_mesh_points)
+            l = 0
+            for j in range(jb, jt + 1):
+                xi[l] = y_coords[j - 1]  # Convert to 0-based indexing
+                u = tsf.solver_base.px(iu, j)
+                v = tsf.solver_base.py(iu, j)
+                arg[l] = ((ak - gam123 * u) * u * u - v * v) * 0.5
+                l += 1
+            sum_val = trap_integration(xi, arg, l)
+            cdup = 2.0 * cdfact * sum_val
+        
+        # Integral on top boundary
+        xi = np.zeros(n_mesh_points)
+        arg = np.zeros(n_mesh_points)
+        l = 0
+        for i in range(iu, id_downstream + 1):
+            xi[l] = x_coords[i - 1]  # Convert to 0-based indexing
+            arg[l] = -tsf.solver_base.px(i, jt) * tsf.solver_base.py(i, jt)
+            l += 1
+        sum_val = trap_integration(xi, arg, l)
+        cdtop = 2.0 * cdfact * sum_val
+        
+        # Integral on bottom boundary
+        xi = np.zeros(n_mesh_points)
+        arg = np.zeros(n_mesh_points)
+        l = 0
+        for i in range(iu, id_downstream + 1):
+            arg[l] = tsf.solver_base.px(i, jb) * tsf.solver_base.py(i, jb)
+            l += 1
+        sum_val = trap_integration(xi, arg, l)
+        cdbot = 2.0 * cdfact * sum_val
+        
+        # Integral on downstream boundary
+        xi = np.zeros(n_mesh_points)
+        arg = np.zeros(n_mesh_points)
+        l = 0
+        for j in range(jb, jt + 1):
+            xi[l] = y_coords[j - 1]  # Convert to 0-based indexing
+            u = tsf.solver_base.px(id_downstream, j)
+            # If flow supersonic, use backward difference formula
+            if u > sonvel:
+                u = tsf.solver_base.px(id_downstream - 1, j)
+            v = tsf.solver_base.py(id_downstream, j)
+            arg[l] = ((gam123 * u - ak) * u * u + v * v) * 0.5
+            l += 1
+        
+        sum_val = trap_integration(xi, arg, l)
+        cddown = 2.0 * cdfact * sum_val
+        
+        # Integral on body boundary
+        cdbody = 0.0
+        if id_downstream <= ite:
+            ilim = ite + 1
+            xi = np.zeros(n_mesh_points)
+            arg = np.zeros(n_mesh_points)
+            l = 0
+            for i in range(id_downstream, ilim + 1):
+                ib = i - ile + 1
+                xi[l] = x_coords[i - 1]  # Convert to 0-based indexing
+                uu = cjup * tsf.solver_base.px(i, jup) - cjup1 * tsf.solver_base.px(i, jup + 1)
+                ul = cjlow * tsf.solver_base.px(i, jlow) - cjlow1 * tsf.solver_base.px(i, jlow - 1)
+                arg[l] = -uu * fxu[ib - 1] + ul * fxl[ib - 1]  # Convert to 0-based indexing
+                l += 1
+            sum_val = trap_integration(xi, arg, l)
+            cdbody = 2.0 * cdfact * sum_val
+        
+        # Integration along shock waves
+        cdwave = 0.0
+        lprt1 = 0
+        lprt2 = 0
+        nshock = 0
+        
+        if ak <= 0.0:
+            # Integrate along detached bow wave
+            nshock += 1
+            lprt1 = 1
+            lprt2 = 1
+            xi = np.zeros(n_mesh_points)
+            arg = np.zeros(n_mesh_points)
+            l = 0
+            isk = ibow
+            for j in range(jb, jt + 1):
+                iskold = isk
+                isk = newisk(iskold, j, sonvel)
+                xi[l] = y_coords[j - 1]  # Convert to 0-based indexing
+                arg[l] = (tsf.solver_base.px(isk + 1, j) - tsf.solver_base.px(isk - 2, j))**3
+                l += 1
+            sum_val = trap_integration(xi, arg, l)
+            cdsk = -gam1 / 6.0 * cdfact * sum_val
+            cdwave += cdsk
+            prtsk(xi, arg, l, nshock, cdsk, lprt1)
+        
+        # Integrate along shocks above airfoil
+        istart = ile
+        
+        # Loop to find and process all shocks above airfoil
+        while True:
+            isk = findsk(istart, ite, jup, sonvel)
+            if isk < 0:
+                break  # No more shocks found
+            
+            # Shock wave found
+            istart = isk + 1
+            nshock += 1
+            lprt1 = 0
+            xi = np.zeros(n_mesh_points)
+            arg = np.zeros(n_mesh_points)
+            l = 1
+            xi[0] = 0.0
+            arg[0] = (cjup * (tsf.solver_base.px(isk + 1, jup) - tsf.solver_base.px(isk - 2, jup)) -
+                     cjup1 * (tsf.solver_base.px(isk + 1, jup + 1) - tsf.solver_base.px(isk - 2, jup + 1)))**3
+            
+            for j in range(jup, jt + 1):
+                xi[l] = y_coords[j - 1]  # Convert to 0-based indexing
+                arg[l] = (tsf.solver_base.px(isk + 1, j) - tsf.solver_base.px(isk - 2, j))**3
+                iskold = isk
+                jsk = j + 1
+                isk = newisk(iskold, jsk, sonvel)
+                if isk < 0:
+                    break
+                if isk > id_downstream:
+                    lprt1 = 1
+                    break
+                l += 1
+            
+            if isk < 0:
+                lprt1 = 1
+            
+            sum_val = trap_integration(xi, arg, l)
+            cdsk = -gam1 / 6.0 * cdfact * sum_val
+            cdwave += cdsk
+            prtsk(xi, arg, l, nshock, cdsk, lprt1)
+            if lprt1 == 1:
+                lprt2 = 1
+        
+        # Integrate along shocks below airfoil
+        istart = ile
+        
+        # Loop to find and process all shocks below airfoil
+        while True:
+            isk = findsk(istart, ite, jlow, sonvel)
+            if isk < 0:
+                break  # No more shocks found
+            
+            # Shock wave found
+            istart = isk + 1
+            nshock += 1
+            lprt1 = 0
+            xi = np.zeros(n_mesh_points)
+            arg = np.zeros(n_mesh_points)
+            l = 1
+            xi[0] = 0.0
+            arg[0] = (cjlow * (tsf.solver_base.px(isk + 1, jlow) - tsf.solver_base.px(isk - 2, jlow)) -
+                     cjlow1 * (tsf.solver_base.px(isk + 1, jlow - 1) - tsf.solver_base.px(isk - 2, jlow - 1)))**3
+            
+            for jj in range(jb, jlow + 1):
+                j = jlow + jb - jj
+                xi[l] = y_coords[j - 1]  # Convert to 0-based indexing
+                arg[l] = (tsf.solver_base.px(isk + 1, j) - tsf.solver_base.px(isk - 2, j))**3
+                iskold = isk
+                jsk = j - 1
+                isk = newisk(iskold, jsk, sonvel)
+                if isk < 0:
+                    break
+                if isk > id_downstream:
+                    lprt1 = 1
+                    break
+                l += 1
+            
+            if isk < 0:
+                lprt1 = 1
+            
+            sum_val = trap_integration(xi, arg, l)
+            cdsk = -gam1 / 6.0 * (-sum_val)
+            cdwave += cdsk
+            prtsk(xi, arg, l, nshock, cdsk, lprt1)
+            if lprt1 == 1:
+                lprt2 = 1
+        
+        # Integration along shocks is complete
+        # Printout CD information
+        xu_loc = x_coords[iu - 1]  # Convert to 0-based indexing
+        xd_loc = x_coords[id_downstream - 1]  # Convert to 0-based indexing
+        yt_loc = y_coords[jt - 1] * yfact  # Convert to 0-based indexing
+        yb_loc = y_coords[jb - 1] * yfact  # Convert to 0-based indexing
+        cdc = cdup + cdtop + cdbot + cddown + cdbody
+        cd = cdc + cdwave
+        
+        # Write drag coefficient breakdown
+        if self.config['flag_output_summary']:
+            with open(os.path.join(self.output_dir, "smry.out"), 'a') as f:
+                
+                f.write('1 CALCULATION OF DRAG COEFFICIENT BY MOMENTUM INTEGRAL METHOD\n')
+                f.write('  BOUNDARIES OF CONTOUR USED CONTRIBUTION TO CD\n')
+                f.write(f' UPSTREAM    X ={xu_loc:12.6f}  CDUP   ={cdup:12.6f}\n')
+                f.write(f' DOWNSTREAM  X ={xd_loc:12.6f}  CDDOWN ={cddown:12.6f}\n')
+                f.write(f' TOP         Y ={yt_loc:12.6f}  CDTOP  ={cdtop:12.6f}\n')
+                f.write(f' BOTTOM      Y ={yb_loc:12.6f}  CDBOT  ={cdbot:12.6f}\n')
+                f.write('\n')
+                f.write(f'Number of shock inside contour, N =      {nshock:3d}\n')
+                f.write(f'Body aft location,              X =      {xd_loc:15.9f}\n')
+                f.write(f'Drag due to body,               CD_body ={cdbody:15.9f}\n')
+                f.write(f'Drag due to shock,              CD_wave ={cdwave:15.9f}\n')
+                f.write(f'Drag by momentum integral,      CD_int = {cdc:15.9f}\n')
+                f.write(f'Total drag (CD_int + CD_wave),  CD =     {cd:15.9f}\n')
+                f.write('\n')
+                
+                if nshock > 0 and lprt2 == 0:
+                    f.write('NOTE - All shocks contained within contour, CD_wave equals total wave drag\n')
+                
+                if nshock > 0 and lprt2 == 1:
+                    f.write('NOTE - One or more shocks extend outside of contour, CD_wave does not equal total wave drag\n')
+                
+                f.write('\n')
+                f.write(f'Number of shock inside contour, N =      {nshock:3d}\n')
+                f.write(f'Body aft location,              X =      {xd_loc:15.9f}\n')
+                f.write(f'Drag due to body,               CD_body ={cdbody:15.9f}\n')
+                f.write(f'Drag due to shock,              CD_wave ={cdwave:15.9f}\n')
+                f.write(f'Drag by momentum integral,      CD_int = {cdc:15.9f}\n')
+                f.write(f'Total drag (CD_int + CD_wave),  CD =     {cd:15.9f}\n')
+    
+    def print_summary(self) -> None:
+        '''
+        Main print driver: prints configuration parameters and calls specialized subroutines.
+        Translates the PRINT subroutine from io_module.f90
+        '''
+        # Get required variables from Fortran modules
+        phys = tsf.common_data.phys
+        simdef = tsf.common_data.simdef
+        bctype = tsf.common_data.bctype
+        fcr = tsf.common_data.fcr
+        kutta = tsf.common_data.kutta
+        emach = tsf.common_data.emach
+        delta = tsf.common_data.delta
+        ak = tsf.common_data.ak
+        
+        # Get solver data variables
+        dub = tsf.solver_data.dub
+        cpfact = tsf.solver_data.cpfact
+        cdfact = tsf.solver_data.cdfact
+        cmfact = tsf.solver_data.cmfact
+        clfact = tsf.solver_data.clfact
+        yfact = tsf.solver_data.yfact
+        vfact = tsf.solver_data.vfact
+        sonvel = tsf.solver_data.sonvel
+        abort1 = tsf.solver_data.abort1
+        
+        # Write summary file
+        if self.config['flag_output_summary']:
+            
+            with open(os.path.join(self.output_dir, "smry.out"), 'w') as f:
+                
+                f.write(f'# Output to smry.out: Summary of the calculation\n')
+                f.write(f'# Mach = {emach:10.6f}\n')
+                f.write(f'# Alpha = {self.data_summary["alpha"]:10.6f}\n')
+                f.write(f'# CL = {self.data_summary["cl"]:10.6f}\n')
+                f.write(f'# CM = {self.data_summary["cm"]:10.6f}\n')
+                f.write(f'# Cp* = {self.data_summary["cpstar"]:10.6f}\n')
+                f.write(f'# DELTA = {delta:10.6f}\n')
+                f.write(f'# K = {ak:10.6f}\n')
+                f.write(f'# DOUBLET STRENGTH = {dub:10.6f}\n')
+                f.write(f'# CPFACT = {cpfact:10.6f}\n')
+                f.write(f'# CDFACT = {cdfact:10.6f}\n')
+                f.write(f'# CMFACT = {cmfact:10.6f}\n')
+                f.write(f'# CLFACT = {clfact:10.6f}\n')
+                f.write(f'# YFACT = {yfact:10.6f}\n')
+                f.write(f'# VFACT = {vfact:10.6f}\n')
+                f.write(f'# SONVEL = {sonvel:10.6f}\n')
+                f.write(f'# ABORT1 = {abort1:10.6f}\n')
+                f.write(f'# BCTYPE = {bctype:10.6f}\n')
+                f.write(f'# FCR = {fcr:10.6f}\n')
+                f.write(f'# KUTTA = {kutta:10.6f}\n')
+                f.write(f'# PHYS = {phys:10.6f}\n')
+                f.write(f'# SIMDEF = {simdef:10.6f}\n')
+                f.write(f'# SCALED POR = {tsf.common_data.por:10.6f}\n')
+
+                # Print similarity/physical variables information
+                if phys:
+                    f.write('0 PRINTOUT IN PHYSICAL VARIABLES. \n')
+                else:
+                    f.write('0 PRINTOUT IN SIMILARITY VARIABLES.\n')
+                
+                # Print similarity parameter definition
+                if simdef == 1:
+                    f.write('0 DEFINITION OF SIMILARITY PARAMETERS BY COLE\n')
+                elif simdef == 2:
+                    f.write('0 DEFINITION OF SIMILARITY PARAMETERS BY SPREITER\n')
+                elif simdef == 3:
+                    f.write('0 DEFINITION OF SIMILARITY PARAMETERS BY KRUPP\n')
+                
+                # Print boundary condition information
+                if bctype == 1:
+                    f.write('0 BOUNDARY CONDITION FOR FREE AIR\n')
+                elif bctype == 2:
+                    f.write('0 BOUNDARY CONDITION FOR SOLID WALL\n')
+                elif bctype == 3:
+                    f.write('0 BOUNDARY CONDITION FOR FREE JET\n')
+                
+                # Print difference equation information
+                if fcr:
+                    f.write('0 DIFFERENCE EQUATIONS ARE FULLY CONSERVATIVE.\n')
+                else:
+                    f.write('0 DIFFERENCE EQUATIONS ARE NOT CONSERVATIVE AT SHOCK.\n')
+                
+                # Print Kutta condition information
+                if kutta:
+                    f.write('0 KUTTA CONDITION IS ENFORCED.\n')
+                else:
+                    f.write('0 LIFT COEFFICIENT SPECIFIED BY USER.\n')
+        
+        # Print shock and mach number on Y=0 line
+        self.output_shock()
+        
+        # Output field data
+        self.output_field()
+
+        # Momentum integral drag calculation
+        self.cdcole_python(sonvel, yfact, delta)
+        
+    def plot_all_results(self, filename:str='tsfoil_results.png'):
+        '''
+        Plot all results, including:
+        - Mesh distribution analysis (read from XIN, YIN in tsfoil2.out)
+        - Mach number distribution on Y=0 line (read from cpxs.dat)
+        - Mach number field (read from field.dat)
+
+        Plot three sub-plots in one figure (1x3).
+        '''
+        
+        # Create figure with 3 subplots arranged in 1 rows, 2 column
+        fig, axes = plt.subplots(1, 2, figsize=(16, 5))
+        fig.suptitle('TSFOIL Results Analysis', fontsize=16, fontweight='bold')
+        
+        # Plot 1: Mach Number Distribution on Y=0 line
+        self._plot_mach_distribution_y0(axes[0])
+        
+        # Plot 2: Mach Number Field
+        self._plot_mach_field(axes[1])
+        
+        plt.tight_layout()
+        plt.savefig(os.path.join(self.output_dir, filename), dpi=300)
+        plt.close()
+        
+    def _plot_mach_distribution_y0(self, ax):
+        '''
+        Plot Mach number distribution on Y=0 line from cpxs.dat
+        '''
+        # Plot Mach number distribution
+        ax.plot(self.mesh['xx'], self.data_summary['mau'],  'b.-', linewidth=2, label='Upper Surface')
+        ax.plot(self.mesh['xx'], self.data_summary['mal'], 'r.-', linewidth=2, label='Lower Surface')
+        
+        # Add reference line for sonic condition
+        ax.axhline(y=1.0, color='k', linestyle='--', alpha=0.5, label='Sonic (M=1)')
+        
+        ax.set_xlabel('X/c')
+        ax.set_ylabel('Mach Number')
+        ax.set_title(f'(Wall) Mach Number Distribution on Y=0')
+        ax.grid(True, alpha=0.3)
+        ax.legend()
+        ax.set_xlim([-0.2, 1.2])
+        
+    def _plot_mach_field(self, ax):
+        '''
+        Plot Mach number field from field.dat
+        '''
+
+        x = self.data_summary['field_data'][:, :, 0]
+        y = self.data_summary['field_data'][:, :, 1]
+        mach = self.data_summary['field_data'][:, :, 2]
+        
+        # Create contour plot
+        max_mach = max(1.5, np.max(mach))
+        levels = np.linspace(0, max_mach, 16)
+        contour = ax.contourf(x, y, mach, levels=levels, cmap='jet', extend='max')
+        
+        # Add colorbar
+        cbar = plt.colorbar(contour, ax=ax, shrink=0.8)
+        cbar.set_label('Mach Number')
+        
+        # Add airfoil outline
+        x_airfoil = self.airfoil['x']
+        y_airfoil = self.airfoil['y']
+        ax.plot(x_airfoil, y_airfoil, 'k--', linewidth=0.5)
+        
+        ax.set_xlim([-0.5, 1.5])
+        ax.set_ylim([-0.5, 0.5])
+        ax.set_xlabel('X/c')
+        ax.set_ylabel('Y/c')
+        ax.set_title(f'Mach Number Field')
+        ax.set_aspect('equal')
+
 
 if __name__ == "__main__":
     
@@ -536,5 +1467,6 @@ if __name__ == "__main__":
     )
     
     pytsfoil.run()
-
+    
+    pytsfoil.plot_all_results()
 

@@ -22,27 +22,32 @@ module io_module
 
   ! Declare public procedures
   public :: READIN, PRINT, OUTPUT_MESH, OUTPUT_PARAMETERS
-  public :: open_output_files, close_output_files
+  public :: open_output_file, open_summary_file, close_output_files
 
 contains
   
   ! Open all output files with unique file units
-  subroutine open_output_files()
+  subroutine open_output_file()
+    use common_data, only: UNIT_OUTPUT
+    implicit none
+    open(unit=UNIT_OUTPUT, file='tsfoil2.out', status='replace', action='write')   ! Unit 15
+  end subroutine open_output_file
+
+  subroutine open_summary_file()
     use common_data, only: UNIT_OUTPUT, UNIT_SUMMARY
     implicit none
-    
-    open(unit=UNIT_OUTPUT, file='tsfoil2.out', status='replace', action='write')   ! Unit 15
     open(unit=UNIT_SUMMARY, file='smry.out', status='replace', action='write')     ! Unit 16
-        
-  end subroutine open_output_files
+  end subroutine open_summary_file
 
   ! Close all output files
   subroutine close_output_files()
     use common_data, only: UNIT_OUTPUT, UNIT_SUMMARY
     implicit none
 
-    close(UNIT_OUTPUT)   ! tsfoil2.out
-    close(UNIT_SUMMARY)  ! smry.out
+    ! Fortran does not have a standard 'open()' function to check if a unit is open.
+    ! The following simply closes the units; closing an already closed unit is safe in most compilers.
+    close(UNIT_OUTPUT)    ! tsfoil2.out
+    close(UNIT_SUMMARY)   ! smry.out
 
   end subroutine close_output_files
   
@@ -66,7 +71,8 @@ contains
     open(unit=UNIT_INPUT, file=trim(IN_FILENAME), status='old')
     
     ! Open output files
-    call open_output_files()
+    call open_output_file()
+    call open_summary_file()
     
     ! Read title card
     read(UNIT_INPUT, '(A)', iostat=ios) TITLE

@@ -190,7 +190,7 @@ contains
     subroutine SOLVE()
         use common_data, only: Y, AK, BCTYPE, NWDGE, UNIT_OUTPUT, IPRTER, MAXIT
         use common_data, only: EPS, IMIN, JMIN, JMAX, IUP, IDOWN, JTOP, JBOT
-        use common_data, only: WE, CVERGE, DVERGE
+        use common_data, only: WE, CVERGE, DVERGE, FLAG_OUTPUT_SOLVE
         use solver_data, only: P, C1, CLFACT, CMFACT, WI, ABORT1, KSTEP
         use solver_data, only: POLD, EMU, THETA
         use solver_base, only: LIFT, PITCH
@@ -221,10 +221,7 @@ contains
         ABORT1 = .false.
         POLD = 0.0
         EMU = 0.0
-        
-        ! Write header to output files
-        write(UNIT_OUTPUT, '(1H1)')
-        
+                
         ! Calculate maximum iterations based on refinement level
         MAXITM = MAXIT
         
@@ -233,12 +230,19 @@ contains
         WEP = WE(KK)
         WI = 1.0 / WEP
         
-        ! Write solver parameters
-        write(UNIT_OUTPUT, '(3X,"WE = ",F7.4,5X,"EPS = ",F8.4,5X,"MAXIT FOR THIS MESH = ",I4)') WEP, EPS, MAXITM
-        
-        ! Write iteration header
-        write(UNIT_OUTPUT, '(/,"  ITER",5X,"CL",8X,"CM",4X,"IERR",1X,"JERR",4X,"ERROR",4X,"IRL",2X,"JRL",4X,"BIGRL",8X,"ERCIRC")')
-        write(*, '(/,"  ITER",5X,"CL",8X,"CM",4X,"IERR",1X,"JERR",4X,"ERROR",4X,"IRL",2X,"JRL",4X,"BIGRL",8X,"ERCIRC")')
+        if (FLAG_OUTPUT_SOLVE == 1) then
+            ! Write header to output files
+            write(UNIT_OUTPUT, '(1H1)')
+
+            ! Write solver parameters
+            write(UNIT_OUTPUT, '(3X,"WE = ",F7.4,5X,"EPS = ",F8.4,5X,"MAXIT FOR THIS MESH = ",I4)') WEP, EPS, MAXITM
+            
+            ! Write iteration header (avoid line truncation by splitting into two lines)
+            write(UNIT_OUTPUT, '(/,"  ITER",5X,"CL",8X,"CM",4X,"IERR",1X,"JERR",4X,"ERROR")')
+            write(UNIT_OUTPUT, '("   IRL",2X,"JRL",4X,"BIGRL",8X,"ERCIRC")')
+            write(*, '(/,"  ITER",5X,"CL",8X,"CM",4X,"IERR",1X,"JERR",4X,"ERROR")')
+            write(*, '("   IRL",2X,"JRL",4X,"BIGRL",8X,"ERCIRC")')
+        end if
 
         ! Main iteration loop
         do ITER = 1, MAXITM
@@ -301,7 +305,7 @@ contains
             end if
             
             ! Print iteration results if needed
-            if (OUTERR) then
+            if (OUTERR .and. FLAG_OUTPUT_SOLVE == 1) then
 
                 CL_LOCAL = LIFT(CLFACT)
                 CM_LOCAL = PITCH(CMFACT)
@@ -357,8 +361,10 @@ contains
             ! Check convergence
             if (ERROR <= CVERGE) then
                 CONVERGED = .true.
-                write(UNIT_OUTPUT, '(//20X,"........SOLUTION CONVERGED........")')
-                write(*,*) 'Solution converged after', ITER, 'iterations.'
+                if (FLAG_OUTPUT_SOLVE == 1) then
+                    write(UNIT_OUTPUT, '(//20X,"........SOLUTION CONVERGED........")')
+                    write(*,*) 'Solution converged after', ITER, 'iterations.'
+                end if
                 exit
             end if
             
@@ -368,15 +374,17 @@ contains
             ! Check divergence
             if (ERROR >= DVERGE) then
                 ABORT1 = .true.
-                write(UNIT_OUTPUT, '(//20X,"******  SOLUTION DIVERGED  ******")')
-                write(*,*) 'Solution diverged after', ITER, 'iterations.'
+                if (FLAG_OUTPUT_SOLVE == 1) then
+                    write(UNIT_OUTPUT, '(//20X,"******  SOLUTION DIVERGED  ******")')
+                    write(*,*) 'Solution diverged after', ITER, 'iterations.'
+                end if
                 exit
             end if
 
         end do
         
         ! Handle case where iteration limit is reached
-        if (.not. CONVERGED .and. .not. ABORT1) then
+        if (.not. CONVERGED .and. .not. ABORT1 .and. FLAG_OUTPUT_SOLVE == 1) then
             write(UNIT_OUTPUT, '(//20X,"******  ITERATION LIMIT REACHED  ******")')
             write(*,*) 'Iteration limit reached after', MAXITM, 'iterations.'
         end if
