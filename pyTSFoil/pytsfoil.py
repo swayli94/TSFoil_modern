@@ -130,6 +130,16 @@ class PyTSFoil(object):
         
         self.compute_mesh_indices()
 
+        self.run_fortran_solver()
+        
+        self.compute_data_summary()
+        
+        self.print_summary()
+    
+    def run_fortran_solver(self) -> None:
+        '''
+        Run the Fortran solver.
+        '''
         # Scale variables to similarity form
         tsf.solver_functions.scale()
 
@@ -146,10 +156,6 @@ class PyTSFoil(object):
         
         # Solve transonic flow equations
         tsf.main_iteration.solve()
-        
-        self.compute_data_summary()
-        
-        self.print_summary()
     
     def _default_config(self):
         '''
@@ -199,12 +205,6 @@ class PyTSFoil(object):
         self.x_scale : float = 5.0
         self.y_scale : float = 4.0
 
-        # Print working directory and output directory
-        if self.config['flag_print_info']:
-            print(f"pyTSFoil working directory: {self.work_dir}")
-            print(f"pyTSFoil output directory: {self.output_dir}")
-            print()
-
     def initialize_data(self) -> None:
         '''
         Initialize the data in Fortran module and Python module.
@@ -235,6 +235,12 @@ class PyTSFoil(object):
         # Apply self.config to common data
         for key, value in self.config.items():
             setattr(tsf.common_data, key.lower(), value)
+
+        # Print working directory and output directory
+        if self.config['flag_print_info']:
+            print(f"pyTSFoil working directory: {self.work_dir}")
+            print(f"pyTSFoil output directory: {self.output_dir}")
+            print()
 
     def set_airfoil(self) -> None:
         '''
@@ -576,6 +582,7 @@ class PyTSFoil(object):
         
         # Compute lift and pitch coefficients
         self.data_summary['alpha'] = alpha * vfact
+        self.data_summary['mach'] = tsf.common_data.emach
         self.data_summary['cl'] = tsf.solver_base.lift(clfact)
         self.data_summary['cm'] = tsf.solver_base.pitch(cmfact)
         self.data_summary['cpstar'] = tsf.solver_data.cpstar
@@ -1245,6 +1252,11 @@ class PyTSFoil(object):
         cdc = cdup + cdtop + cdbot + cddown + cdbody
         cd = cdc + cdwave
         
+        self.data_summary['cd'] = cd
+        self.data_summary['cd_int'] = cdc
+        self.data_summary['cd_wave'] = cdwave
+        self.data_summary['cd_body'] = cdbody
+        
         # Write drag coefficient breakdown
         if self.config['flag_output_summary']:
             with open(os.path.join(self.output_dir, "smry.out"), 'a') as f:
@@ -1269,14 +1281,6 @@ class PyTSFoil(object):
                 
                 if nshock > 0 and lprt2 == 1:
                     f.write('NOTE - One or more shocks extend outside of contour, CD_wave does not equal total wave drag\n')
-                
-                f.write('\n')
-                f.write(f'Number of shock inside contour, N =      {nshock:3d}\n')
-                f.write(f'Body aft location,              X =      {xd_loc:15.9f}\n')
-                f.write(f'Drag due to body,               CD_body ={cdbody:15.9f}\n')
-                f.write(f'Drag due to shock,              CD_wave ={cdwave:15.9f}\n')
-                f.write(f'Drag by momentum integral,      CD_int = {cdc:15.9f}\n')
-                f.write(f'Total drag (CD_int + CD_wave),  CD =     {cd:15.9f}\n')
     
     def print_summary(self) -> None:
         '''
@@ -1417,6 +1421,7 @@ class PyTSFoil(object):
         ax.grid(True, alpha=0.3)
         ax.legend()
         ax.set_xlim([-0.2, 1.2])
+        ax.set_ylim([-0.1, 1.5])
         
     def _plot_mach_field(self, ax):
         '''
