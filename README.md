@@ -20,3 +20,7 @@ This version also includes a Python wrapper for easier integration with Python-b
 
 The modernization process is majorly conducted by the large language model, Claude Sonnet 4, with some contributions from the author.
 The detailed modernization process is documented in the `src/modernization_process.md` file.
+
+## A Python Verion
+
+A python version is developed and available at https://github.com/swayli94/pyTSFoil.
